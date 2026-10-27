@@ -31,3 +31,9 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Pinned tooling and build output (make tools, make build)
+/bin/
+
+# Claude Code personal settings
+.claude/settings.local.json

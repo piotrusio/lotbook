@@ -1,0 +1,80 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: none
+  enable:
+    # ── correctness ─────────────────────────────────────────
+    - errcheck        # unchecked errors
+    - staticcheck     # broad static analysis (includes gosimple, unused)
+    - ineffassign     # assignments whose value is never used
+
+    # ── bugs ────────────────────────────────────────────────
+    - bodyclose       # http response body not closed
+    - nilerr          # returns nil instead of err
+    - nilnil          # (error, error) returning nil, nil
+    - durationcheck   # wrong time.Duration multiplications
+    - exhaustive      # missing cases in switch on enum
+    - makezero        # slice created with non-zero length then appended to
+
+    # ── systems / low-level ─────────────────────────────────
+    - govet           # go vet checks (printf, copylocks, unsafeptr …)
+    - wastedassign    # wasted assignments
+    - noctx           # http requests without context
+
+    # ── style & maintainability ─────────────────────────────
+    - misspell        # common English spelling mistakes in comments/strings
+    - godot           # comments should end with a period
+    - whitespace      # leading/trailing blank lines
+    - unconvert       # unnecessary type conversions
+
+    # ── performance ─────────────────────────────────────────
+    - prealloc        # slice pre-allocation hints
+    - forcetypeassert # unchecked type assertions
+
+    # ── security ────────────────────────────────────────────
+    - gosec           # security scanner (CWE-based rules)
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true
+
+    exhaustive:
+      default-signifies-exhaustive: true
+
+    godot:
+      scope: toplevel
+      capital: false
+
+    staticcheck:
+      checks: ["all"]
+
+    prealloc:
+      simple: true
+      range-loops: true
+      for-loops: false
+
+  exclusions:
+    rules:
+      - path: "_test\\.go"
+        linters:
+          - errcheck
+          - forcetypeassert
+          - gosec
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
+  settings:
+    goimports:
+      local-prefixes:
+        - lotbook.org/lotbook
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

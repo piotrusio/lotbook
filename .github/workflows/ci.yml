@@ -1,0 +1,43 @@
+# CI runs the same gate as a developer: `make check`. What is checked, and
+# with which tool versions, is stated once — in the Makefile and go.mod.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+  # New vulnerabilities are published against code that has not changed.
+  schedule:
+    - cron: "0 6 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: bin
+          key: tools-${{ runner.os }}-${{ hashFiles('Makefile') }}
+      - run: make check
+
+  # PRs are squash-merged and the title becomes the commit on main.
+  pr-title:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: .scripts/validate-commit-msg.sh --title "$TITLE"

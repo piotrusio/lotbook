@@ -1,0 +1,28 @@
+# Git hooks. Install: make setup. Run manually: make hooks-run.
+
+pre-commit:
+  parallel: false
+  commands:
+    fmt:
+      glob: "*.go"
+      run: gofmt -w {staged_files}
+      stage_fixed: true
+
+    # The flow's first commit is the tests, red, before the implementation
+    # exists — in Go that means they do not compile, and golangci-lint
+    # typechecks. A commit staging nothing but *_test.go is therefore linted
+    # implementation-only; the moment anything else is staged, the full lint
+    # runs.
+    lint:
+      glob: "*.go"
+      run: |
+        if git diff --cached --name-only | grep -E '\.go$' | grep -qvE '_test\.go$'; then
+          make lint
+        else
+          make lint-impl
+        fi
+
+commit-msg:
+  commands:
+    conventional:
+      run: .scripts/validate-commit-msg.sh {1}

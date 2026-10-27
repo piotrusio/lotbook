@@ -1,0 +1,58 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go test *)",
+      "Bash(go build *)",
+      "Bash(go vet *)",
+      "Bash(go run ./cmd/lotbook*)",
+      "Bash(make lint)",
+      "Bash(make lint-impl)",
+      "Bash(make test)",
+      "Bash(make lint test)",
+      "Bash(make vuln)",
+      "Bash(make tidy-check)",
+      "Bash(make check)",
+      "Bash(make build)",
+      "Bash(make fmt)",
+      "Bash(make help)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.scripts/hooks/post-edit.sh",
+            "timeout": 120,
+            "statusMessage": "Lint po edycji…"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.scripts/hooks/stop-gate.sh",
+            "timeout": 900,
+            "statusMessage": "Bramka done…"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.scripts/hooks/notify.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
