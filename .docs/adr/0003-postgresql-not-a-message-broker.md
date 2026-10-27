@@ -28,8 +28,8 @@ the topics and posts them to the ingest contract.
 
 ## Decision
 
-**PostgreSQL is Lotbook's only store of record.** The journal of raw records,
-the genealogy and everything served by SQL live in it. Ordering is a
+**PostgreSQL is Lotbook's only store of record.** The journal of source
+changes, the genealogy and everything served by SQL live in it. Ordering is a
 monotonically increasing sequence; work is shared between worker replicas by
 key, each replica holding the keys it works on, and a key held by a failed
 replica is released and taken over.

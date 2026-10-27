@@ -27,29 +27,43 @@ each its own workload:
 
 | Role | Does | Scales |
 |---|---|---|
-| `ingest` | accepts batches of raw records over HTTPS, writes them to the journal, answers `202` once they are durable; idempotent by the source's record id | stateless, any number of replicas |
-| `worker` | interprets the journal in order and writes genealogy events | replicas share the work by key |
-| `query` | holds the graph in memory, serves traversals and the change feed | stateful set, every replica holds the whole graph |
+| `ingest` | accepts batches of source row changes over HTTPS, writes them to the journal, answers `202` once they are durable | stateless, any number of replicas |
+| `worker` | follows the journal in commit order: maintains the mirror, assembles documents, interprets them and writes genealogy events | replicas share the work by key |
+| `query` | holds the graph in memory, serves traversals with their documents, and the change feed | stateful set, every replica holds the whole graph |
 
 ## Data flow
 
 ```text
-raw records ──▶ journal ──▶ interpretation ──▶ genealogy events (seq) ──┬──▶ graph tables + read schema
-              (immutable)    (rules, versioned)  (immutable, provenance)  ├──▶ CSR in every query replica
-                                                                         └──▶ change feed
+connector: source row changes (table, operation, key, row, transaction, commit position)
+   ▼
+journal ─────────────▶ mirror ──────────────▶ documents ──────────────▶ interpretation
+(record: the source's   (derived: current      (derived: assembled         │
+ transaction log,        state of the source's  from complete source        ▼
+ commit order)           tables, per source)    transactions, versioned)  genealogy events (seq)
+                                                       │                 (record, with provenance)
+                                                       │                    │
+                                                       │                    ├──▶ graph tables + read schema
+                                                       │                    ├──▶ CSR in every query replica
+                                                       │                    └──▶ change feed
+                                                       ▼                    ▼
+                                                  query engine: traverse the graph, fetch the documents
 ```
 
-The journal and the genealogy events are the records; the graph is derived
-from the events and can be rebuilt
-([ADR-0004](../adr/0004-genealogy-events-are-the-source-of-truth.md)).
-Everything downstream follows one sequence and states the one it is current to
+The journal and the genealogy events are the records; the mirror, the
+documents and the graph are derived and can be rebuilt
+([ADR-0004](../adr/0004-the-journal-and-genealogy-events-are-the-records.md)).
+How a document is assembled from a source's tables, and what it means for a
+lot, are both specific to the source system.
+Everything downstream of the genealogy events follows one sequence and states
+the one it is current to
 ([ADR-0005](../adr/0005-the-genealogy-is-served-three-ways.md)).
 
 ## The graph
 
 The skeleton — node ids, kinds, times, edges in both directions — is held in
-memory as CSR with a delta for real-time changes and background compaction;
-document data stays in PostgreSQL and is joined for results only
+memory as CSR with a delta for real-time changes and background compaction.
+Nodes carry document keys; the documents themselves stay in PostgreSQL and are
+fetched for a result only
 ([ADR-0006](../adr/0006-the-graph-lives-in-memory-as-csr.md)).
 
 Memory per `query` replica is about `8·E + 17·N` bytes for E edges and N
