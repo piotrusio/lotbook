@@ -31,3 +31,11 @@ The one exception lasts one turn: at the `test` commit the tests are red on purp
 - **Go version:** the `go` line in `go.mod` is the minimum patch release with no known vulnerabilities. Raise it when a Go security release lands; `make vuln` fails otherwise.
 - **Tooling is pinned in one place:** golangci-lint in the `Makefile`, lefthook and govulncheck as `tool` lines in `go.mod`. CI runs `make check` and states nothing of its own.
 - **Commands:** `make help`.
+
+## Where to look
+
+| Doing this | Read first |
+|---|---|
+| Anything about how the system is shaped | [`.docs/system/architecture.md`](.docs/system/architecture.md) |
+| Why it is shaped that way | [`.docs/adr/`](.docs/adr/) |
+| Writing or changing anything under `.docs/` | [`.docs/CLAUDE.md`](.docs/CLAUDE.md) |
