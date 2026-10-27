@@ -8,7 +8,7 @@ under the Apache 2.0 license, but development is done only by the maintainers.
 ## What we accept
 
 - **Issues**: bug reports, feature requests and questions are welcome.
-  Please use one of the [issue templates](../../issues/new/choose).
+  Please use one of the [issue templates](https://github.com/piotrusio/lotbook/issues/new/choose).
 
 ## What we don't accept
 
@@ -21,4 +21,4 @@ You're free to fork the project under the terms of the [license](LICENSE).
 ## Security
 
 Please don't report security vulnerabilities in public issues. Use
-[GitHub private vulnerability reporting](../../security/advisories/new) instead.
+[GitHub private vulnerability reporting](https://github.com/piotrusio/lotbook/security/advisories/new) instead.
