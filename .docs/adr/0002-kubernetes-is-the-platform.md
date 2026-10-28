@@ -1,9 +1,9 @@
 # ADR-0002: Lotbook runs on Kubernetes and brings its dependencies into the cluster
 
-- **Status:** Accepted
+- **Status:** Superseded
 - **Date:** 2026-10-27
 - **Supersedes:** —
-- **Superseded-by:** —
+- **Superseded-by:** ADR-0010
 - **Issue/PR:** —
 
 ## Context

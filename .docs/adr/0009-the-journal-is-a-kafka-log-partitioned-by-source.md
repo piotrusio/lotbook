@@ -47,7 +47,7 @@ spread over the brokers and the workers.
   transaction.** A worker that fails resumes from the position PostgreSQL
   holds; nothing is interpreted twice and nothing is skipped.
 - **Kafka is installed with Lotbook through a Kubernetes operator**, as
-  PostgreSQL is (ADR-0002), as several brokers with replication.
+  PostgreSQL is (ADR-0010), as several brokers with replication.
 
 ## Consequences
 
@@ -61,7 +61,7 @@ spread over the brokers and the workers.
   — operated and upgraded by the installation.
 - `-` The largest single source is bound by what one partition and one worker
   take.
-- `-` A Kafka client is a new dependency, to be added by its own ADR
-  (ADR-0007).
-- open: retention. The journal is a record and is never dropped (ADR-0004);
-  how a log that grows for ever is kept.
+- `-` A Kafka client is a new dependency, added by its own ADR (ADR-0007,
+  ADR-0012).
+- `-` A log that grows for ever has to be kept somewhere other than the
+  brokers' disks (ADR-0011).

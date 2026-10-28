@@ -104,31 +104,41 @@ on standard output, each line carrying `trace_id` and `span_id`.
 ## Dependencies
 
 Lotbook's code imports the Go standard library,
-[pgx](https://github.com/jackc/pgx) and
-[OpenTelemetry](https://opentelemetry.io/)'s API, SDK and OTLP/HTTP exporter —
-nothing else
-([ADR-0007](../adr/0007-the-standard-library-postgresql-and-opentelemetry.md)).
-`depguard` in [`.golangci.yml`](../../.golangci.yml) refuses any other import.
-HTTP and pgx instrumentation is our own: middleware on the server and pgx's
-tracer hooks.
+[pgx](https://github.com/jackc/pgx),
+[OpenTelemetry](https://opentelemetry.io/)'s API, SDK and OTLP/HTTP exporter
+([ADR-0007](../adr/0007-the-standard-library-postgresql-and-opentelemetry.md))
+and [franz-go](https://github.com/twmb/franz-go)'s client and admin package
+([ADR-0012](../adr/0012-a-pure-go-kafka-client.md)) — nothing else.
+`depguard` in [`.golangci.yml`](../../.golangci.yml) refuses any other import,
+and franz-go's plugins. HTTP, pgx and Kafka instrumentation is our own:
+middleware on the server, pgx's tracer hooks, franz-go's hooks.
 
 Beneath the OTLP exporter come the protocol's generated types and with them
 protobuf, gRPC, grpc-gateway and a few `golang.org/x` modules — some twenty in
 the binary, the same over HTTP as over gRPC. `go version -m bin/lotbook` lists
-them; `make vuln` checks all of them.
+them; `make vuln` checks all of them. franz-go adds three: its protocol
+messages and the `klauspost/compress` and `lz4` codecs.
 
 ## Platform
 
 Lotbook runs on Kubernetes, at least three worker nodes
-([ADR-0002](../adr/0002-kubernetes-is-the-platform.md)), and installs with:
+([ADR-0010](../adr/0010-kubernetes-with-an-object-store-from-the-environment.md)),
+and installs with:
 
 - **PostgreSQL** through the CloudNativePG operator — three instances,
   streaming replication, automatic failover, backups;
 - **Kafka** through the Strimzi operator — at least three brokers in KRaft
   mode, the journal replicated across them
   ([ADR-0009](../adr/0009-the-journal-is-a-kafka-log-partitioned-by-source.md));
+  the journal's topic with unlimited retention, no compaction, and tiered
+  storage moving closed segments to object storage through an S3 remote
+  storage plugin in the broker image
+  ([ADR-0011](../adr/0011-the-journal-is-kept-for-ever-through-tiered-storage.md));
 - **graph snapshots** on each `query` replica's persistent volume, copied
-  between replicas when a new one starts — no object store.
+  between replicas when a new one starts.
+
+It takes from the environment one thing: an **S3-compatible object store**
+for the journal's cold segments — a cloud provider's, or one run on premises.
 
 Installed with a Helm chart. Migrations, compaction and snapshots are
 explicit commands of the binary. A single-node install is for evaluation and
