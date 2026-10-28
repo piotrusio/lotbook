@@ -16,8 +16,10 @@
                          └──────────────── one Kubernetes cluster ────────────────┘
 ```
 
-Only HTTPS crosses the cluster's edge: the ingest contract inbound, the
-traversal API and the change feed outbound. Kafka and PostgreSQL are
+Only HTTPS crosses the cluster's edge: the ingest contract inbound
+(`POST /v1/batches`,
+[ADR-0014](../adr/0014-the-ingest-contract-accepts-persists-and-answers.md)),
+the traversal API and the change feed outbound. Kafka and PostgreSQL are
 reachable from Lotbook's pods only, except the PostgreSQL read replica
 exposed for SQL consumers.
 
@@ -31,6 +33,23 @@ each its own workload:
 | `ingest` | accepts batches of source records — row changes or events — over HTTPS, writes them to the journal in Kafka, answers `202` once Kafka holds them durably | stateless, any number of replicas |
 | `worker` | follows the journal in each source's order: maintains the mirror of relational sources, assembles documents, interprets them and writes genealogy events | replicas share the journal's partitions as one consumer group |
 | `query` | holds the graph in memory, serves traversals with their documents, and the change feed | stateful set, every replica holds the whole graph |
+
+## Identity and access
+
+Every HTTPS request carries a bearer token from the installation's IdP —
+Entra ID, Okta, Google, Keycloak, any OpenID Connect provider. Lotbook trusts
+the issuers it is configured with, verifies tokens against their published
+keys itself, and takes from a token only its issuer and subject. What that
+identity may do is Lotbook's mapping, in PostgreSQL
+([ADR-0015](../adr/0015-identity-from-the-idp-authorization-in-lotbook.md)):
+
+| Interface | Used by | May |
+|---|---|---|
+| ingest | one service account per connector | write records of the sources mapped to it |
+| traversal API | systems and people | read the genealogy, given the role |
+| change feed | systems | read the feed, given the role |
+| SQL read schema | analytical tools | PostgreSQL roles, read-only views |
+| life-cycle commands | operators | Kubernetes RBAC |
 
 ## Data flow
 
