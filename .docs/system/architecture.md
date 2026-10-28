@@ -86,6 +86,11 @@ connector ──traceparent──▶ ingest ──▶ journal (trace context per
 ```
 
 `──▶` writes, `┆ link` is a span link from the later step to the earlier one.
+A span is one unit of work — a batch, a document, an interpretation, a run of
+events applied, a feed response — and links once per distinct trace it read,
+up to the SDK's link limit, recording how many it left out. The journal and
+the genealogy events store the `traceparent` only; the change feed hands it on
+to consumers.
 
 W3C Trace Context on the wire, OTLP over HTTP out. Logs are `log/slog` JSON
 on standard output, each line carrying `trace_id` and `span_id`.
