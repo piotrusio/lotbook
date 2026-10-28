@@ -37,7 +37,38 @@ linters:
     # ── security ────────────────────────────────────────────
     - gosec           # security scanner (CWE-based rules)
 
+    # ── dependencies ────────────────────────────────────────
+    - depguard        # imports outside ADR-0007's allowed set
+
   settings:
+    # ADR-0007: the standard library, the PostgreSQL driver and OpenTelemetry.
+    # Adding a dependency is a new ADR; this list changes with it. A deny entry
+    # wins over a shorter allow entry, which is how parts of OpenTelemetry are
+    # kept out. This checks our own imports only; what OpenTelemetry pulls in
+    # beneath them is accepted with it and watched by govulncheck.
+    depguard:
+      rules:
+        main:
+          list-mode: strict
+          files:
+            - $all
+          allow:
+            - $gostd
+            - lotbook.org/lotbook
+            - github.com/jackc/pgx/v5
+            - go.opentelemetry.io/otel
+          deny:
+            - pkg: go.opentelemetry.io/otel/log
+              desc: "logs are slog on stdout until the OTLP log exporter reaches v1 (ADR-0007)"
+            - pkg: go.opentelemetry.io/otel/sdk/log
+              desc: "logs are slog on stdout until the OTLP log exporter reaches v1 (ADR-0007)"
+            - pkg: go.opentelemetry.io/otel/exporters/otlp/otlplog
+              desc: "logs are slog on stdout until the OTLP log exporter reaches v1 (ADR-0007)"
+            - pkg: go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc
+              desc: "OTLP goes out over HTTP, for the proxies and ingresses on its way (ADR-0007)"
+            - pkg: go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc
+              desc: "OTLP goes out over HTTP, for the proxies and ingresses on its way (ADR-0007)"
+
     errcheck:
       check-type-assertions: true
       check-blank: true
