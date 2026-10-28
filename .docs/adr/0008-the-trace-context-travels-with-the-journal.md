@@ -10,18 +10,18 @@
 
 Almost nothing Lotbook does happens inside the request that caused it. `ingest`
 answers `202` once a batch is durable in the journal; a `worker` assembles and
-interprets it later, in commit order (ADR-0004, ADR-0009); the `query`
+interprets it later, in each source's order (ADR-0013, ADR-0009); the `query`
 replicas apply the resulting genealogy events later still, and the change feed
 hands them on (ADR-0005, ADR-0006). A trace that lives as long as a request
 ends at the `202`, and everything after it is invisible — which is where every
 interesting delay and every wrong link is made.
 
-The steps do not line up one to one. One source transaction can arrive over
-several batches, one document is assembled from several transactions, and one
-interpretation writes several genealogy events. A step has many causes, each
-in another request, and they are minutes apart. Some steps read at scale: a
-large source transaction, a rebuild of the mirror, a corrected rule reading
-the journal again (ADR-0004).
+The steps do not line up one to one. One unit of a source — a transaction,
+say — can arrive over several batches, one document is assembled from several
+units, and one interpretation writes several genealogy events. A step has
+many causes, each in another request, and they are minutes apart. Some steps
+read at scale: a large unit, a rebuild of the mirror, a corrected rule
+reading the journal again (ADR-0013).
 
 Weighed and rejected:
 
@@ -44,11 +44,11 @@ format.**
 - **The ingest contract accepts a trace context** from the connector. When one
   is sent, the ingest span continues it; when none is, ingest starts a trace
   of its own. The contract never requires one.
-- **Every change in the journal can be traced to the ingest request that wrote
+- **Every record in the journal can be traced to the ingest request that wrote
   it.**
 - **Each asynchronous step starts a trace of its own and links to the traces of
   what it read** — assembling a document links to the ingest traces of its
-  journal changes; interpreting it links to the assembly. A link, not a
+  journal records; interpreting it links to the assembly. A link, not a
   parent: a step with many causes keeps all of them.
 - **Every genealogy event keeps the trace context of the interpretation that
   wrote it**, next to its provenance. Applying events in a `query` replica
@@ -60,7 +60,7 @@ format.**
   document assembled, one interpretation, one run of events applied in a
   replica, one response of the change feed.
 - **Links are bounded.** A step links once per distinct trace it read, not
-  once per record — the changes of one batch share one. Above a fixed limit
+  once per record — the records of one batch share one. Above a fixed limit
   it links no further and records how many it left out, so a cut list says it
   is cut.
 - **What is stored is the `traceparent` alone** — trace id, span id and flags,
@@ -78,11 +78,11 @@ format.**
   the same path the provenance gives an auditor, open to an operator.
 - `+` A traced connector and a traced consumer are joined to Lotbook's traces
   with no agreement beyond an open standard.
-- `+` The time from a change committed in the source to its edge in the graph
+- `+` The time from a record leaving the source to its edge in the graph
   becomes measurable, step by step.
 - `-` The journal and the genealogy events carry 25 bytes of trace context
   per record, or per batch where the records share it.
-- `-` A step that reads at scale — a rebuild, a large transaction — keeps a
+- `-` A step that reads at scale — a rebuild, a large unit — keeps a
   count of its causes, not all of them; the provenance still names every one.
 - `-` The path is told by span links, which an observability backend has to
   show to be of use.

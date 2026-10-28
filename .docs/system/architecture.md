@@ -28,20 +28,21 @@ each its own workload:
 
 | Role | Does | Scales |
 |---|---|---|
-| `ingest` | accepts batches of source row changes over HTTPS, writes them to the journal in Kafka, answers `202` once Kafka holds them durably | stateless, any number of replicas |
-| `worker` | follows the journal in commit order: maintains the mirror, assembles documents, interprets them and writes genealogy events | replicas share the journal's partitions as one consumer group |
+| `ingest` | accepts batches of source records — row changes or events — over HTTPS, writes them to the journal in Kafka, answers `202` once Kafka holds them durably | stateless, any number of replicas |
+| `worker` | follows the journal in each source's order: maintains the mirror of relational sources, assembles documents, interprets them and writes genealogy events | replicas share the journal's partitions as one consumer group |
 | `query` | holds the graph in memory, serves traversals with their documents, and the change feed | stateful set, every replica holds the whole graph |
 
 ## Data flow
 
 ```text
-connector: source row changes (table, operation, key, row, transaction, commit position)
+connector: source records (source, position, unit; a row change or an event)
    ▼
-journal ─────────────▶ mirror ──────────────▶ documents ──────────────▶ interpretation
-(record: the source's   (derived: current      (derived: assembled         │
- transaction log,        state of the source's  from complete source        ▼
- commit order; Kafka,    tables, per source)    transactions, versioned)  genealogy events (seq)
- a partition per source)
+journal ──row changes──▶ mirror ────────────▶ documents ──────────────▶ interpretation
+(record: what the      (derived: current        ▲ (derived: assembled      │
+ source said, in its    state of a relational   │  from complete units,    ▼
+ order; Kafka, a        source's tables)        │  versioned)            genealogy events (seq)
+ partition per source)                          │
+   └──────────────events────────────────────────┘
                                                        │                 (record, with provenance)
                                                        │                    │
                                                        │                    ├──▶ graph tables + read schema
@@ -53,12 +54,14 @@ journal ─────────────▶ mirror ───────�
 
 The journal and the genealogy events are the records; the mirror, the
 documents and the graph are derived and can be rebuilt
-([ADR-0004](../adr/0004-the-journal-and-genealogy-events-are-the-records.md)).
+([ADR-0013](../adr/0013-the-journal-holds-what-the-source-said.md)).
+A source is one ordered stream; its records are row changes, which go
+through the mirror, or events, which are assembled into documents directly.
 The journal lives in Kafka, the genealogy events and everything served from
 them in PostgreSQL; a worker commits the genealogy events it writes together
 with the journal position it consumed, in one PostgreSQL transaction
 ([ADR-0009](../adr/0009-the-journal-is-a-kafka-log-partitioned-by-source.md)).
-How a document is assembled from a source's tables, and what it means for a
+How a document is assembled from a source's records, and what it means for a
 lot, are both specific to the source system.
 Everything downstream of the genealogy events follows one sequence and states
 the one it is current to
@@ -82,7 +85,7 @@ what it read; the context crosses each boundary as data
 ([ADR-0008](../adr/0008-the-trace-context-travels-with-the-journal.md)):
 
 ```text
-connector ──traceparent──▶ ingest ──▶ journal (trace context per change)
+connector ──traceparent──▶ ingest ──▶ journal (trace context per record)
                                          ┆ link
                                       assembly
                                          ┆ link

@@ -20,7 +20,7 @@ documents behind it hold; consumers join the skeleton to those documents.
 ## Decision
 
 **The genealogy is served three ways, all fed from the genealogy events in
-sequence order (ADR-0004), each stating the sequence it is current to:**
+sequence order (ADR-0013), each stating the sequence it is current to:**
 
 1. **A traversal API** over HTTPS — upstream, downstream, impact — answered
    from the graph in memory (ADR-0006), with document data joined for the

@@ -1,9 +1,9 @@
 # ADR-0004: The journal and the genealogy events are the records; everything else is derived
 
-- **Status:** Accepted
+- **Status:** Superseded
 - **Date:** 2026-10-27
 - **Supersedes:** —
-- **Superseded-by:** —
+- **Superseded-by:** ADR-0013
 - **Issue/PR:** —
 
 ## Context

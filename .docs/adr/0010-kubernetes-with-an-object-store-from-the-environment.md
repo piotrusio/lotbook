@@ -16,7 +16,7 @@ controlled order.
 
 ADR-0002 brought every stateful dependency into the installation and refused
 any provided from outside it, an object store included. The journal changes
-that: it is a record kept for ever (ADR-0004) in a log that grows without
+that: it is a record kept for ever (ADR-0013) in a log that grows without
 bound (ADR-0009), read again only rarely — for a rebuild or an audit — and
 in sequence. That is cold data, and object storage is where cold data is
 kept: written once, read whole, replicated and durable by the store's own

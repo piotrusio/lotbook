@@ -9,14 +9,14 @@
 ## Context
 
 An installation connects hundreds of source systems — ERP, WMS and MES across
-a company's sites — and every one of them sends its row changes into the
-journal (ADR-0004). Together they write far more than one PostgreSQL primary
+a company's sites — and every one of them sends what it says, row changes or
+events, into the journal (ADR-0013). Together they write far more than one PostgreSQL primary
 takes, and that primary was the limit ADR-0003 named when it put the journal
 in PostgreSQL.
 
-What the journal has to keep is commit order **within one source**: a
-document is assembled from one source's complete transactions, in the order
-that source committed them. Nothing orders one source against another. The
+What the journal has to keep is the source's order **within one source**: a
+document is assembled from one source's complete units, in the order the
+source gave them. Nothing orders one source against another. The
 one sequence that spans everything belongs to the genealogy events
 (ADR-0005), and they are written at a fraction of the journal's rate — only
 documents that mean something for a lot produce them.
@@ -31,8 +31,8 @@ Weighed and rejected:
 
 ## Decision
 
-**The journal is a Kafka log, partitioned by source.** All changes of one
-source go to one partition, in the source's commit order; partitions are
+**The journal is a Kafka log, partitioned by source.** All records of one
+source go to one partition, in the source's order; partitions are
 spread over the brokers and the workers.
 
 - **`ingest` writes to Kafka only**, and answers `202` once Kafka holds the

@@ -8,15 +8,15 @@
 
 ## Context
 
-The journal is a record and is never dropped (ADR-0004); it lives in Kafka
+The journal is a record and is never dropped (ADR-0013); it lives in Kafka
 (ADR-0009). With hundreds of sources writing into it, its history reaches
 tens of terabytes a year, and every broker holds three copies of whatever it
 keeps.
 
 The history is read rarely and in one way: from an offset onwards, in order —
 when a defect is repaired by rebuilding the derived levels or by
-interpreting again (ADR-0004), and when an audit follows a provenance down to
-the rows. What is read every moment is the head of each partition.
+interpreting again (ADR-0013), and when an audit follows a provenance down to
+what the source said. What is read every moment is the head of each partition.
 
 Weighed and rejected:
 
