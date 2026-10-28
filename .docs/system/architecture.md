@@ -69,6 +69,43 @@ fetched for a result only
 Memory per `query` replica is about `8·E + 17·N` bytes for E edges and N
 nodes: 100 million nodes at 5 edges each is about 5.7 GB.
 
+## Tracing
+
+Every asynchronous step starts a trace of its own and links to the traces of
+what it read; the context crosses each boundary as data
+([ADR-0008](../adr/0008-the-trace-context-travels-with-the-journal.md)):
+
+```text
+connector ──traceparent──▶ ingest ──▶ journal (trace context per change)
+                                         ┆ link
+                                      assembly
+                                         ┆ link
+                                   interpretation ──▶ genealogy event (trace context)
+                                                             ┆ link
+                                                  query replica, change feed
+```
+
+`──▶` writes, `┆ link` is a span link from the later step to the earlier one.
+
+W3C Trace Context on the wire, OTLP over HTTP out. Logs are `log/slog` JSON
+on standard output, each line carrying `trace_id` and `span_id`.
+
+## Dependencies
+
+Lotbook's code imports the Go standard library,
+[pgx](https://github.com/jackc/pgx) and
+[OpenTelemetry](https://opentelemetry.io/)'s API, SDK and OTLP/HTTP exporter —
+nothing else
+([ADR-0007](../adr/0007-the-standard-library-postgresql-and-opentelemetry.md)).
+`depguard` in [`.golangci.yml`](../../.golangci.yml) refuses any other import.
+HTTP and pgx instrumentation is our own: middleware on the server and pgx's
+tracer hooks.
+
+Beneath the OTLP exporter come the protocol's generated types and with them
+protobuf, gRPC, grpc-gateway and a few `golang.org/x` modules — some twenty in
+the binary, the same over HTTP as over gRPC. `go version -m bin/lotbook` lists
+them; `make vuln` checks all of them.
+
 ## Platform
 
 Lotbook runs on Kubernetes, at least three worker nodes

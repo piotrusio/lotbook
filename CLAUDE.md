@@ -29,6 +29,7 @@ The one exception lasts one turn: at the `test` commit the tests are red on purp
 
 - **Commits and PR titles:** `type(scope): subject`, scope optional, validated by `.scripts/validate-commit-msg.sh`. Types: `feat | fix | refactor | test | build | ci | docs | chore`. PRs are squash-merged, so the PR title is the commit on `main`.
 - **Go version:** the `go` line in `go.mod` is the minimum patch release with no known vulnerabilities. Raise it when a Go security release lands; `make vuln` fails otherwise.
+- **Dependencies:** our code imports the standard library, pgx and OpenTelemetry — nothing else ([ADR-0007](.docs/adr/0007-the-standard-library-postgresql-and-opentelemetry.md)), and `depguard` refuses it. Never import a module OpenTelemetry happens to pull in. A new dependency is a new ADR; never widen the depguard list without one.
 - **Tooling is pinned in one place:** golangci-lint in the `Makefile`, lefthook and govulncheck as `tool` lines in `go.mod`. CI runs `make check` and states nothing of its own.
 - **Commands:** `make help`.
 
