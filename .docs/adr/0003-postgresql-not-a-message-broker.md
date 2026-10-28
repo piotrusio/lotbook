@@ -1,9 +1,9 @@
 # ADR-0003: PostgreSQL holds the journal and the genealogy, not a message broker
 
-- **Status:** Accepted
+- **Status:** Superseded
 - **Date:** 2026-10-27
 - **Supersedes:** —
-- **Superseded-by:** —
+- **Superseded-by:** ADR-0009
 - **Issue/PR:** —
 
 ## Context

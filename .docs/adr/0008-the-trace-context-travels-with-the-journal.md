@@ -10,7 +10,7 @@
 
 Almost nothing Lotbook does happens inside the request that caused it. `ingest`
 answers `202` once a batch is durable in the journal; a `worker` assembles and
-interprets it later, in commit order (ADR-0003, ADR-0004); the `query`
+interprets it later, in commit order (ADR-0004, ADR-0009); the `query`
 replicas apply the resulting genealogy events later still, and the change feed
 hands them on (ADR-0005, ADR-0006). A trace that lives as long as a request
 ends at the `202`, and everything after it is invisible — which is where every

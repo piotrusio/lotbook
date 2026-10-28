@@ -17,7 +17,7 @@ one, mostly through dependencies nobody asked for.
 Most of what a Go service usually imports, the standard library already does:
 routing by method and path, structured logging, JSON, TLS, HMAC, embedded
 files, memory-mapping a file, testing. What it does not do is speak the
-PostgreSQL protocol (ADR-0003) or produce traces in a form an installation's
+PostgreSQL protocol (ADR-0009) or produce traces in a form an installation's
 observability stack can take in — and tracing is not optional for a pipeline
 whose every step happens after the request that caused it has been answered
 (ADR-0008).

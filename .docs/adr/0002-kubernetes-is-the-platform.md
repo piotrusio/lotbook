@@ -32,9 +32,9 @@ Weighed and rejected:
 Which distribution, and whether managed or self-run, is not constrained.
 
 **The installation brings its stateful dependencies into the cluster.**
-PostgreSQL runs through a Kubernetes operator installed with Lotbook, as
-several instances with replication and automatic failover. No other stateful
-dependency is required (ADR-0003, ADR-0006).
+PostgreSQL and Kafka run through Kubernetes operators installed with Lotbook,
+each as several instances with replication and automatic failover. No other
+stateful dependency is required (ADR-0006, ADR-0009).
 
 **Lotbook is installed with a Helm chart.** Life-cycle steps that must happen
 in order — schema migrations, graph compaction and snapshots — are explicit
@@ -50,5 +50,5 @@ A single-node install is for evaluation and development only.
 - `+` An installation is self-contained: its database is configured, sized
   and upgraded by the install itself.
 - `-` Running Lotbook requires a Kubernetes cluster.
-- `-` The installation operates PostgreSQL and owns its configuration,
-  backups and upgrades.
+- `-` The installation operates PostgreSQL and Kafka and owns their
+  configuration, backups and upgrades.

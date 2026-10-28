@@ -12,13 +12,14 @@
   connectors (own repos) ──HTTPS──▶ ingress ──▶ lotbook ──▶ traversal  change    SQL
                                                   │          API       feed     (read schema,
                                                   ▼                              DB replica)
-                                              PostgreSQL
+                                      Kafka (journal), PostgreSQL
                          └──────────────── one Kubernetes cluster ────────────────┘
 ```
 
 Only HTTPS crosses the cluster's edge: the ingest contract inbound, the
-traversal API and the change feed outbound. PostgreSQL is reachable from
-Lotbook's pods only, except the read replica exposed for SQL consumers.
+traversal API and the change feed outbound. Kafka and PostgreSQL are
+reachable from Lotbook's pods only, except the PostgreSQL read replica
+exposed for SQL consumers.
 
 ## Roles
 
@@ -27,8 +28,8 @@ each its own workload:
 
 | Role | Does | Scales |
 |---|---|---|
-| `ingest` | accepts batches of source row changes over HTTPS, writes them to the journal, answers `202` once they are durable | stateless, any number of replicas |
-| `worker` | follows the journal in commit order: maintains the mirror, assembles documents, interprets them and writes genealogy events | replicas share the work by key |
+| `ingest` | accepts batches of source row changes over HTTPS, writes them to the journal in Kafka, answers `202` once Kafka holds them durably | stateless, any number of replicas |
+| `worker` | follows the journal in commit order: maintains the mirror, assembles documents, interprets them and writes genealogy events | replicas share the journal's partitions as one consumer group |
 | `query` | holds the graph in memory, serves traversals with their documents, and the change feed | stateful set, every replica holds the whole graph |
 
 ## Data flow
@@ -39,7 +40,8 @@ connector: source row changes (table, operation, key, row, transaction, commit p
 journal ─────────────▶ mirror ──────────────▶ documents ──────────────▶ interpretation
 (record: the source's   (derived: current      (derived: assembled         │
  transaction log,        state of the source's  from complete source        ▼
- commit order)           tables, per source)    transactions, versioned)  genealogy events (seq)
+ commit order; Kafka,    tables, per source)    transactions, versioned)  genealogy events (seq)
+ a partition per source)
                                                        │                 (record, with provenance)
                                                        │                    │
                                                        │                    ├──▶ graph tables + read schema
@@ -52,6 +54,10 @@ journal ─────────────▶ mirror ───────�
 The journal and the genealogy events are the records; the mirror, the
 documents and the graph are derived and can be rebuilt
 ([ADR-0004](../adr/0004-the-journal-and-genealogy-events-are-the-records.md)).
+The journal lives in Kafka, the genealogy events and everything served from
+them in PostgreSQL; a worker commits the genealogy events it writes together
+with the journal position it consumed, in one PostgreSQL transaction
+([ADR-0009](../adr/0009-the-journal-is-a-kafka-log-partitioned-by-source.md)).
 How a document is assembled from a source's tables, and what it means for a
 lot, are both specific to the source system.
 Everything downstream of the genealogy events follows one sequence and states
@@ -117,8 +123,10 @@ Lotbook runs on Kubernetes, at least three worker nodes
 ([ADR-0002](../adr/0002-kubernetes-is-the-platform.md)), and installs with:
 
 - **PostgreSQL** through the CloudNativePG operator — three instances,
-  streaming replication, automatic failover, backups
-  ([ADR-0003](../adr/0003-postgresql-not-a-message-broker.md));
+  streaming replication, automatic failover, backups;
+- **Kafka** through the Strimzi operator — at least three brokers in KRaft
+  mode, the journal replicated across them
+  ([ADR-0009](../adr/0009-the-journal-is-a-kafka-log-partitioned-by-source.md));
 - **graph snapshots** on each `query` replica's persistent volume, copied
   between replicas when a new one starts — no object store.
 
