@@ -1,6 +1,6 @@
 # ADR-0004: The journal and the genealogy events are the records; everything else is derived
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-10-27
 - **Supersedes:** —
 - **Superseded-by:** —
@@ -55,9 +55,14 @@ traversal runs on the graph, and the documents are fetched for the result.
 
 ## Consequences
 
-- `+` A defect in assembly, in key derivation or in interpretation is
-  repaired by rebuilding from the journal; the source data is never lost to
+- `+` A defect in assembly or in key derivation is repaired by rebuilding the
+  mirror and the documents from the journal; the source data is never lost to
   our own bug.
+- `+` A defect in interpretation is repaired by the corrected rule reading
+  the journal again and writing new genealogy events — invalidating the wrong
+  edges, adding the right ones, with the new rule version in their
+  provenance. The wrong interpretation stays in the history: when an edge
+  existed, and why it was withdrawn, remain answerable.
 - `+` *Why is lot A linked to lot B* is answered by provenance, down to the
   rows the source committed.
 - `+` Connectors stay ignorant of documents and of lots: they read changes.
