@@ -18,7 +18,8 @@
 
 Only HTTPS crosses the cluster's edge: the ingest contract inbound
 (`POST /v1/batches`,
-[ADR-0014](../adr/0014-the-ingest-contract-accepts-persists-and-answers.md)),
+[ADR-0014](../adr/0014-the-ingest-contract-accepts-persists-and-answers.md),
+contract in [`contracts/ingest/v1/openapi.json`](../../contracts/ingest/v1/openapi.json)),
 the traversal API and the change feed outbound. Kafka and PostgreSQL are
 reachable from Lotbook's pods only, except the PostgreSQL read replica
 exposed for SQL consumers.

@@ -9,6 +9,7 @@ Rules for writing anything under `.docs/`. The documents are the reference; this
 | Why we chose a shape, with the alternatives and the trade-offs | an ADR in [`adr/`](adr/) |
 | How a part of the system works as a whole | the owning [`system/<subject>.md`](system/) |
 | What a lot, a movement or an interpretation rule is, and what it refuses | **the code** — the doc comment above the type and its test. Never a document here |
+| What a public interface accepts and answers, field by field | **the contract** — [`contracts/`](../contracts/), machine-readable. Never a document here |
 | A defect, or work in flight | an issue on GitHub — a few lines, never a specification |
 | A rule an agent must follow | the nearest `CLAUDE.md` — not a doc |
 

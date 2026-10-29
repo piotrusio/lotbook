@@ -1,0 +1,613 @@
+{
+  "openapi": "3.1.0",
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "info": {
+    "title": "Lotbook ingest contract",
+    "version": "1",
+    "summary": "How a connector hands what a source said to Lotbook.",
+    "description": "One endpoint accepts batches of source records, makes them durable in the journal and answers. What the records mean, their order, duplicates and the completeness of units are worked out later, from the records themselves; nothing here asks a connector how to send. Decisions: ADR-0013 (the record), ADR-0014 (this contract), ADR-0015 (identity), ADR-0008 (trace context).",
+    "license": {
+      "name": "Apache-2.0",
+      "identifier": "Apache-2.0"
+    }
+  },
+  "security": [
+    {
+      "idpBearer": []
+    }
+  ],
+  "paths": {
+    "/v1/batches": {
+      "post": {
+        "operationId": "acceptBatch",
+        "summary": "Accept a batch of source records.",
+        "description": "Checks that every record has this contract's shape and that the sender may write to every record's source, then writes the batch to the journal. The batch is kept with the sender's identity, its trace context and this contract's version. A batch is accepted whole or refused whole. The body may be sent with `Content-Encoding: gzip`.",
+        "parameters": [
+          {
+            "name": "traceparent",
+            "in": "header",
+            "required": false,
+            "description": "W3C Trace Context. When sent, the ingest span continues the connector's trace (ADR-0008).",
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Batch"
+              },
+              "examples": {
+                "transaction": {
+                  "$ref": "#/components/examples/transaction"
+                },
+                "event": {
+                  "$ref": "#/components/examples/event"
+                },
+                "deletion": {
+                  "$ref": "#/components/examples/deletion"
+                }
+              },
+              "x-lotbook-refused-examples": {
+                "positionAsNumber": {
+                  "summary": "A position sent as a JSON number, which loses digits past 2^53.",
+                  "value": {
+                    "records": [
+                      {
+                        "source": "plant-a.erp",
+                        "position": 1048577,
+                        "unit": { "id": "t-77", "last": true },
+                        "kind": "event",
+                        "type": "lot.released",
+                        "subject": { "lot": { "t": "text", "v": "L-0001" } },
+                        "occurred_at": "2026-10-28T09:15:00Z",
+                        "data": {}
+                      }
+                    ]
+                  }
+                },
+                "decimalAsNumber": {
+                  "summary": "A decimal sent as a JSON number, which loses its scale.",
+                  "value": {
+                    "records": [
+                      {
+                        "source": "plant-a.erp",
+                        "position": "1048577",
+                        "unit": { "id": "t-77", "last": true },
+                        "kind": "row_change",
+                        "table": "receipt_line",
+                        "operation": "insert",
+                        "key": { "id": { "t": "integer", "v": "9" } },
+                        "row": { "quantity": { "t": "decimal", "v": 12.5 } }
+                      }
+                    ]
+                  }
+                },
+                "noUnit": {
+                  "summary": "A record without the unit it belongs to.",
+                  "value": {
+                    "records": [
+                      {
+                        "source": "plant-a.erp",
+                        "position": "1048577",
+                        "kind": "row_change",
+                        "table": "receipt",
+                        "operation": "insert",
+                        "key": { "id": { "t": "integer", "v": "1" } },
+                        "row": { "id": { "t": "integer", "v": "1" } }
+                      }
+                    ]
+                  }
+                },
+                "updateWithoutRow": {
+                  "summary": "An update that does not carry the row as it is after the change.",
+                  "value": {
+                    "records": [
+                      {
+                        "source": "plant-a.erp",
+                        "position": "1048577",
+                        "unit": { "id": "t-77", "last": true },
+                        "kind": "row_change",
+                        "table": "receipt",
+                        "operation": "update",
+                        "key": { "id": { "t": "integer", "v": "1" } }
+                      }
+                    ]
+                  }
+                },
+                "timestampWithoutZone": {
+                  "summary": "A timestamp without its offset; a time without a zone is a local_datetime.",
+                  "value": {
+                    "records": [
+                      {
+                        "source": "plant-a.erp",
+                        "position": "1048577",
+                        "unit": { "id": "t-77", "last": true },
+                        "kind": "row_change",
+                        "table": "receipt",
+                        "operation": "insert",
+                        "key": { "id": { "t": "integer", "v": "1" } },
+                        "row": { "posted_at": { "t": "timestamp", "v": "2026-10-28T09:15:00" } }
+                      }
+                    ]
+                  }
+                },
+                "empty": {
+                  "summary": "A batch with no records.",
+                  "value": {
+                    "records": []
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The batch is durable in the journal."
+          },
+          "400": {
+            "description": "A record does not have this contract's shape. Nothing is written.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No valid identity: the token is missing, expired, not issued for Lotbook or by an issuer the installation trusts (ADR-0015).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A record names a source its sender may not write. Nothing is written.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The journal did not take the batch. Send it again; a batch that reaches the journal twice is harmless.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before sending again.",
+                "schema": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            },
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "idpBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "A token issued by the installation's identity provider for Lotbook's audience, to the connector's own service account (ADR-0015)."
+      }
+    },
+    "schemas": {
+      "Batch": {
+        "type": "object",
+        "description": "Records of any sources the sender may write to, in any order.",
+        "required": ["records"],
+        "additionalProperties": false,
+        "properties": {
+          "records": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/Record"
+            }
+          }
+        }
+      },
+      "Record": {
+        "description": "One thing a source said: a row change or an event, in the envelope every record shares (ADR-0013).",
+        "oneOf": [
+          { "$ref": "#/components/schemas/RowChange" },
+          { "$ref": "#/components/schemas/Event" }
+        ],
+        "discriminator": {
+          "propertyName": "kind",
+          "mapping": {
+            "row_change": "#/components/schemas/RowChange",
+            "event": "#/components/schemas/Event"
+          }
+        }
+      },
+      "Source": {
+        "type": "string",
+        "description": "One ordered stream, named by the installation. A system with several independent streams is several sources.",
+        "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
+      },
+      "Position": {
+        "type": "string",
+        "description": "Where the record stands in its source's order: a non-negative integer of any length, in decimal, without leading zeros. Increases within the source; means nothing across sources.",
+        "pattern": "^(0|[1-9][0-9]*)$"
+      },
+      "Unit": {
+        "type": "object",
+        "description": "The records that make sense only together — a transaction in a transactional source; each event on its own in an evented one. The last record of a unit is marked.",
+        "required": ["id", "last"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "The unit's identity, as the source gives it."
+          },
+          "last": {
+            "type": "boolean",
+            "description": "True on the unit's last record."
+          }
+        }
+      },
+      "Fields": {
+        "type": "object",
+        "description": "Named values: a row's columns, a key's parts, an event's data.",
+        "additionalProperties": {
+          "$ref": "#/components/schemas/Value"
+        }
+      },
+      "RowChange": {
+        "type": "object",
+        "description": "A change to one row of a relational source.",
+        "required": ["source", "position", "unit", "kind", "table", "operation", "key"],
+        "additionalProperties": false,
+        "properties": {
+          "source": { "$ref": "#/components/schemas/Source" },
+          "position": { "$ref": "#/components/schemas/Position" },
+          "unit": { "$ref": "#/components/schemas/Unit" },
+          "kind": { "const": "row_change" },
+          "table": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "The table as the source names it."
+          },
+          "operation": {
+            "enum": ["insert", "update", "delete"]
+          },
+          "key": {
+            "$ref": "#/components/schemas/Fields",
+            "minProperties": 1,
+            "description": "The row's key, every column of it."
+          },
+          "row": {
+            "$ref": "#/components/schemas/Fields",
+            "description": "The whole row as it is after the change. Required on insert and update; absent on delete."
+          }
+        },
+        "if": {
+          "properties": { "operation": { "const": "delete" } }
+        },
+        "then": {
+          "not": { "required": ["row"] }
+        },
+        "else": {
+          "required": ["row"]
+        }
+      },
+      "Event": {
+        "type": "object",
+        "description": "One event of an evented source.",
+        "required": ["source", "position", "unit", "kind", "type", "subject", "occurred_at", "data"],
+        "additionalProperties": false,
+        "properties": {
+          "source": { "$ref": "#/components/schemas/Source" },
+          "position": { "$ref": "#/components/schemas/Position" },
+          "unit": { "$ref": "#/components/schemas/Unit" },
+          "kind": { "const": "event" },
+          "type": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "The event's type as the source names it."
+          },
+          "subject": {
+            "$ref": "#/components/schemas/Fields",
+            "minProperties": 1,
+            "description": "The key of what the event is about."
+          },
+          "occurred_at": {
+            "type": "string",
+            "description": "When the event occurred in the source, RFC 3339 with its offset.",
+            "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Fields",
+            "description": "The event's data."
+          }
+        }
+      },
+      "Value": {
+        "description": "A value with its type stated, in the canonical text of that type, so that nothing the source held — precision, scale, zone — is lost on the way.",
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["t"],
+            "additionalProperties": false,
+            "properties": { "t": { "const": "null" } }
+          },
+          {
+            "type": "object",
+            "required": ["t", "v"],
+            "additionalProperties": false,
+            "properties": {
+              "t": { "const": "text" },
+              "v": { "type": "string" }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["t", "v"],
+            "additionalProperties": false,
+            "description": "An integer of any size, in decimal.",
+            "properties": {
+              "t": { "const": "integer" },
+              "v": { "type": "string", "pattern": "^-?(0|[1-9][0-9]*)$" }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["t", "v"],
+            "additionalProperties": false,
+            "description": "An exact decimal; trailing zeros are its scale and are kept.",
+            "properties": {
+              "t": { "const": "decimal" },
+              "v": { "type": "string", "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$" }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["t", "v"],
+            "additionalProperties": false,
+            "properties": {
+              "t": { "const": "bool" },
+              "v": { "enum": ["true", "false"] }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["t", "v"],
+            "additionalProperties": false,
+            "description": "A calendar date, YYYY-MM-DD.",
+            "properties": {
+              "t": { "const": "date" },
+              "v": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["t", "v"],
+            "additionalProperties": false,
+            "description": "An instant: RFC 3339 with its offset, fractional seconds to any precision.",
+            "properties": {
+              "t": { "const": "timestamp" },
+              "v": {
+                "type": "string",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["t", "v"],
+            "additionalProperties": false,
+            "description": "A date and time the source holds without a zone, kept as it is: Lotbook does not guess the zone.",
+            "properties": {
+              "t": { "const": "local_datetime" },
+              "v": {
+                "type": "string",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?$"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["t", "v"],
+            "additionalProperties": false,
+            "description": "Bytes, standard base64 with padding.",
+            "properties": {
+              "t": { "const": "bytes" },
+              "v": {
+                "type": "string",
+                "pattern": "^([A-Za-z0-9+/]{4})*([A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["t", "v"],
+            "additionalProperties": false,
+            "properties": {
+              "t": { "const": "object" },
+              "v": { "$ref": "#/components/schemas/Fields" }
+            }
+          },
+          {
+            "type": "object",
+            "required": ["t", "v"],
+            "additionalProperties": false,
+            "properties": {
+              "t": { "const": "array" },
+              "v": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/Value" }
+              }
+            }
+          }
+        ]
+      },
+      "Problem": {
+        "type": "object",
+        "description": "RFC 9457 problem details.",
+        "required": ["title", "status"],
+        "properties": {
+          "type": { "type": "string", "format": "uri-reference" },
+          "title": { "type": "string" },
+          "status": { "type": "integer" },
+          "detail": { "type": "string" },
+          "errors": {
+            "type": "array",
+            "description": "On 400 and 403: what is wrong, record by record.",
+            "items": {
+              "type": "object",
+              "required": ["record", "reason"],
+              "properties": {
+                "record": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "The record's index in the batch."
+                },
+                "pointer": {
+                  "type": "string",
+                  "description": "JSON Pointer to the offending member, within the record."
+                },
+                "reason": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "examples": {
+      "transaction": {
+        "summary": "One transaction of a relational source, over three row changes.",
+        "value": {
+          "records": [
+            {
+              "source": "plant-a.erp",
+              "position": "1048577",
+              "unit": { "id": "t-77", "last": false },
+              "kind": "row_change",
+              "table": "receipt",
+              "operation": "insert",
+              "key": { "id": { "t": "integer", "v": "5001" } },
+              "row": {
+                "id": { "t": "integer", "v": "5001" },
+                "posted_at": { "t": "local_datetime", "v": "2026-10-28T09:15:00.123" },
+                "supplier": { "t": "text", "v": "S-0420" },
+                "note": { "t": "null" }
+              }
+            },
+            {
+              "source": "plant-a.erp",
+              "position": "1048578",
+              "unit": { "id": "t-77", "last": false },
+              "kind": "row_change",
+              "table": "receipt_line",
+              "operation": "insert",
+              "key": {
+                "receipt": { "t": "integer", "v": "5001" },
+                "line": { "t": "integer", "v": "1" }
+              },
+              "row": {
+                "receipt": { "t": "integer", "v": "5001" },
+                "line": { "t": "integer", "v": "1" },
+                "material": { "t": "text", "v": "M-100" },
+                "lot": { "t": "text", "v": "L-2026-0042" },
+                "quantity": { "t": "decimal", "v": "12.5000" },
+                "expiry": { "t": "date", "v": "2028-10-31" }
+              }
+            },
+            {
+              "source": "plant-a.erp",
+              "position": "1048579",
+              "unit": { "id": "t-77", "last": true },
+              "kind": "row_change",
+              "table": "stock",
+              "operation": "update",
+              "key": {
+                "material": { "t": "text", "v": "M-100" },
+                "lot": { "t": "text", "v": "L-2026-0042" }
+              },
+              "row": {
+                "material": { "t": "text", "v": "M-100" },
+                "lot": { "t": "text", "v": "L-2026-0042" },
+                "quantity": { "t": "decimal", "v": "112.5000" },
+                "blocked": { "t": "bool", "v": "false" }
+              }
+            }
+          ]
+        }
+      },
+      "event": {
+        "summary": "One event of an evented source; an event is a unit of its own.",
+        "value": {
+          "records": [
+            {
+              "source": "plant-b.mes.packaging",
+              "position": "907",
+              "unit": { "id": "evt-907", "last": true },
+              "kind": "event",
+              "type": "lot.packed",
+              "subject": { "lot": { "t": "text", "v": "L-2026-0042" } },
+              "occurred_at": "2026-10-28T11:02:17.5+01:00",
+              "data": {
+                "line": { "t": "text", "v": "PK-3" },
+                "packages": { "t": "integer", "v": "480" },
+                "components": {
+                  "t": "array",
+                  "v": [
+                    {
+                      "t": "object",
+                      "v": {
+                        "lot": { "t": "text", "v": "C-77" },
+                        "quantity": { "t": "decimal", "v": "480.000" }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      },
+      "deletion": {
+        "summary": "A deleted row carries its key and no row.",
+        "value": {
+          "records": [
+            {
+              "source": "plant-a.wms",
+              "position": "18446744073709551617",
+              "unit": { "id": "t-9001", "last": true },
+              "kind": "row_change",
+              "table": "reservation",
+              "operation": "delete",
+              "key": { "id": { "t": "integer", "v": "31" } }
+            }
+          ]
+        }
+      }
+    }
+  }
+}

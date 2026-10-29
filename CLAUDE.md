@@ -30,6 +30,7 @@ The one exception lasts one turn: at the `test` commit the tests are red on purp
 - **Commits:** `type(scope): subject`, scope optional, validated by `.scripts/validate-commit-msg.sh`. Types: `feat | fix | refactor | test | build | ci | docs | chore`. Work is committed and pushed straight to `main` — no branches, no PRs.
 - **Go version:** the `go` line in `go.mod` is the minimum patch release with no known vulnerabilities. Raise it when a Go security release lands; `make vuln` fails otherwise.
 - **Dependencies:** our code imports the standard library, pgx, OpenTelemetry ([ADR-0007](.docs/adr/0007-the-standard-library-postgresql-and-opentelemetry.md)) and franz-go ([ADR-0012](.docs/adr/0012-a-pure-go-kafka-client.md)) — nothing else, and `depguard` refuses it. Never import a module OpenTelemetry happens to pull in. A new dependency is a new ADR; never widen the depguard list without one.
+- **Contracts:** every public interface's contract is a machine-readable file, `contracts/<interface>/v<N>/openapi.json` — OpenAPI 3.1 in JSON, with examples of what is accepted and, under `x-lotbook-refused-examples`, of what is refused. The tests run on those examples. A released version is never edited; a change is the next version.
 - **Tooling is pinned in one place:** golangci-lint in the `Makefile`, lefthook and govulncheck as `tool` lines in `go.mod`. CI runs `make check` and states nothing of its own.
 - **Commands:** `make help`.
 
@@ -39,4 +40,5 @@ The one exception lasts one turn: at the `test` commit the tests are red on purp
 |---|---|
 | Anything about how the system is shaped | [`.docs/system/architecture.md`](.docs/system/architecture.md) |
 | Why it is shaped that way | [`.docs/adr/`](.docs/adr/) |
+| What a public interface accepts and answers | [`contracts/`](contracts/) |
 | Writing or changing anything under `.docs/` | [`.docs/CLAUDE.md`](.docs/CLAUDE.md) |
