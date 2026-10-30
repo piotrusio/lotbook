@@ -8,12 +8,12 @@
 
 ## Context
 
-The journal is in Kafka (ADR-0009). `ingest` produces into it and answers
-only once a batch is durable; workers consume it as one group and keep their
-positions in PostgreSQL, not in Kafka; the life-cycle commands create and
+The journal is in Kafka (ADR-0009). `ingest` produces into it and answers only
+once a request's records are durable; workers consume it as one group and keep
+their positions in PostgreSQL, not in Kafka; the life-cycle commands create and
 configure its topic (ADR-0011). That is a producer, a consumer group with
-positions committed elsewhere, and an admin client — the whole of the
-protocol that matters, none of which the standard library speaks.
+positions committed elsewhere, and an admin client — the whole of the protocol
+that matters, none of which the standard library speaks.
 
 Every dependency is a decision recorded on its own (ADR-0007).
 

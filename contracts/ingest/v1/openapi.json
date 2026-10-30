@@ -5,7 +5,7 @@
     "title": "Lotbook ingest contract",
     "version": "1",
     "summary": "How a connector hands what a source said to Lotbook.",
-    "description": "One endpoint accepts batches of source records, makes them durable in the journal and answers. What the records mean, their order, duplicates and the completeness of units are worked out later, from the records themselves; nothing here asks a connector how to send. Decisions: ADR-0013 (the record), ADR-0014 (this contract), ADR-0015 (identity), ADR-0008 (trace context).",
+    "description": "One endpoint accepts source records, any number in a request, makes them durable in the journal and answers. What the records mean, their order, duplicates and the completeness of units are worked out later, from the records themselves; nothing here asks a connector how to send. Decisions: ADR-0013 (the record), ADR-0014 (this contract), ADR-0015 (identity), ADR-0008 (trace context).",
     "license": {
       "name": "Apache-2.0",
       "identifier": "Apache-2.0"
@@ -17,11 +17,11 @@
     }
   ],
   "paths": {
-    "/v1/batches": {
+    "/v1/source-events": {
       "post": {
-        "operationId": "acceptBatch",
-        "summary": "Accept a batch of source records.",
-        "description": "Checks that every record has this contract's shape and that the sender may write to every record's source, then writes the batch to the journal. The batch is kept with the sender's identity, its trace context and this contract's version. A batch is accepted whole or refused whole. The body may be sent with `Content-Encoding: gzip`.",
+        "operationId": "acceptSourceEvents",
+        "summary": "Accept source records.",
+        "description": "Checks that every record has this contract's shape and that the sender may write to every record's source, then writes them to the journal. The records are kept with the sender's identity, the request's trace context and this contract's version. A request is accepted whole or refused whole. The body may be sent with `Content-Encoding: gzip`.",
         "parameters": [
           {
             "name": "traceparent",
@@ -39,7 +39,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/Batch"
+                "$ref": "#/components/schemas/Request"
               },
               "examples": {
                 "transaction": {
@@ -137,7 +137,7 @@
                   }
                 },
                 "empty": {
-                  "summary": "A batch with no records.",
+                  "summary": "A request with no records.",
                   "value": {
                     "records": []
                   }
@@ -148,7 +148,7 @@
         },
         "responses": {
           "202": {
-            "description": "The batch is durable in the journal."
+            "description": "The request's records are durable in the journal."
           },
           "400": {
             "description": "A record does not have this contract's shape. Nothing is written.",
@@ -181,7 +181,7 @@
             }
           },
           "503": {
-            "description": "The journal did not take the batch. Send it again; a batch that reaches the journal twice is harmless.",
+            "description": "The journal did not take the records. Send the request again; a record that reaches the journal twice is harmless.",
             "headers": {
               "Retry-After": {
                 "description": "Seconds to wait before sending again.",
@@ -213,7 +213,7 @@
       }
     },
     "schemas": {
-      "Batch": {
+      "Request": {
         "type": "object",
         "description": "Records of any sources the sender may write to, in any order.",
         "required": ["records"],
@@ -486,7 +486,7 @@
                 "record": {
                   "type": "integer",
                   "minimum": 0,
-                  "description": "The record's index in the batch."
+                  "description": "The record's index in the request."
                 },
                 "pointer": {
                   "type": "string",

@@ -51,7 +51,7 @@ Connect and OAuth 2.0, and decides itself what their holder may do.**
   client credentials or with workload identity federation, which leaves no
   secret to store at all.
 - **One service account per connector, never shared**, so the journal names
-  which connector delivered each batch (ADR-0014) and one connector can be cut
+  which connector delivered each record (ADR-0014) and one connector can be cut
   off alone.
 - **Authorization is held by Lotbook:** for each identity, the sources it may
   write, and its roles on the read side — reading the genealogy, reading the

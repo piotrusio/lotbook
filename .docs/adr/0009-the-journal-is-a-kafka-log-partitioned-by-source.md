@@ -10,9 +10,9 @@
 
 An installation connects hundreds of source systems — ERP, WMS and MES across
 a company's sites — and every one of them sends what it says, row changes or
-events, into the journal (ADR-0013). Together they write far more than one PostgreSQL primary
-takes, and that primary was the limit ADR-0003 named when it put the journal
-in PostgreSQL.
+events, into the journal (ADR-0013). Together they write far more than one
+PostgreSQL primary takes, and that primary was the limit ADR-0003 named when
+it put the journal in PostgreSQL.
 
 What the journal has to keep is the source's order **within one source**: a
 document is assembled from one source's complete units, in the order the
@@ -36,7 +36,7 @@ source go to one partition, in the source's order; partitions are
 spread over the brokers and the workers.
 
 - **`ingest` writes to Kafka only**, and answers `202` once Kafka holds the
-  batch durably. Nothing is written twice at ingest.
+  request's records durably. Nothing is written twice at ingest.
 - **Workers share the journal's partitions** as one consumer group: a
   partition is worked by one worker at a time and taken over when it fails.
 - **PostgreSQL holds the genealogy events and everything served from them**,

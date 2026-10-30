@@ -9,15 +9,16 @@
 ## Context
 
 Almost nothing Lotbook does happens inside the request that caused it. `ingest`
-answers `202` once a batch is durable in the journal; a `worker` assembles and
-interprets it later, in each source's order (ADR-0013, ADR-0009); the `query`
-replicas apply the resulting genealogy events later still, and the change feed
-hands them on (ADR-0005, ADR-0006). A trace that lives as long as a request
-ends at the `202`, and everything after it is invisible — which is where every
-interesting delay and every wrong link is made.
+answers `202` once a request's records are durable in the journal; a `worker`
+assembles and interprets them later, in each source's order (ADR-0013,
+ADR-0009); the `query` replicas apply the resulting genealogy events later
+still, and the change feed hands them on (ADR-0005, ADR-0006). A trace that
+lives as long as a request ends at the `202`, and everything after it is
+invisible — which is where every interesting delay and every wrong link is
+made.
 
 The steps do not line up one to one. One unit of a source — a transaction,
-say — can arrive over several batches, one document is assembled from several
+say — can arrive over several requests, one document is assembled from several
 units, and one interpretation writes several genealogy events. A step has
 many causes, each in another request, and they are minutes apart. Some steps
 read at scale: a large unit, a rebuild of the mirror, a corrected rule
@@ -56,11 +57,11 @@ format.**
 - **The change feed hands each event's trace context on**, so a consumer can
   link its own processing to the interpretation that produced the event — the
   same open standard on the way out as on the way in.
-- **A span describes a unit of work, never a record:** one batch accepted, one
+- **A span describes a unit of work, never a record:** one request accepted, one
   document assembled, one interpretation, one run of events applied in a
   replica, one response of the change feed.
 - **Links are bounded.** A step links once per distinct trace it read, not
-  once per record — the records of one batch share one. Above a fixed limit
+  once per record — the records of one request share one. Above a fixed limit
   it links no further and records how many it left out, so a cut list says it
   is cut.
 - **What is stored is the `traceparent` alone** — trace id, span id and flags,
@@ -81,7 +82,7 @@ format.**
 - `+` The time from a record leaving the source to its edge in the graph
   becomes measurable, step by step.
 - `-` The journal and the genealogy events carry 25 bytes of trace context
-  per record, or per batch where the records share it.
+  per record, or per request where the records share it.
 - `-` A step that reads at scale — a rebuild, a large unit — keeps a
   count of its causes, not all of them; the provenance still names every one.
 - `-` The path is told by span links, which an observability backend has to

@@ -16,8 +16,9 @@ traversal — recursive queries explode on wide fan-out and their cost is
 unpredictable. That is the known way relational genealogies fail at this
 scale.
 
-Data arrives in real time, so the graph cannot be rebuilt in batches; and it
-is read by many consumers at once, so reads cannot wait on writes.
+Data arrives in real time, so the graph cannot be rebuilt from scratch now
+and then; and it is read by many consumers at once, so reads cannot wait on
+writes.
 
 ## Decision
 

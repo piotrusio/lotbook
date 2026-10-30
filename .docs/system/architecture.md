@@ -17,7 +17,7 @@
 ```
 
 Only HTTPS crosses the cluster's edge: the ingest contract inbound
-(`POST /v1/batches`,
+(`POST /v1/source-events`,
 [ADR-0014](../adr/0014-the-ingest-contract-accepts-persists-and-answers.md),
 contract in [`contracts/ingest/v1/openapi.json`](../../contracts/ingest/v1/openapi.json)),
 the traversal API and the change feed outbound. Kafka and PostgreSQL are
@@ -31,7 +31,7 @@ each its own workload:
 
 | Role | Does | Scales |
 |---|---|---|
-| `ingest` | accepts batches of source records — row changes or events — over HTTPS, writes them to the journal in Kafka, answers `202` once Kafka holds them durably | stateless, any number of replicas |
+| `ingest` | accepts source records — row changes or events — over HTTPS, writes them to the journal in Kafka, answers `202` once Kafka holds them durably | stateless, any number of replicas |
 | `worker` | follows the journal in each source's order: maintains the mirror of relational sources, assembles documents, interprets them and writes genealogy events | replicas share the journal's partitions as one consumer group |
 | `query` | holds the graph in memory, serves traversals with their documents, and the change feed | stateful set, every replica holds the whole graph |
 
@@ -115,7 +115,7 @@ connector ──traceparent──▶ ingest ──▶ journal (trace context per
 ```
 
 `──▶` writes, `┆ link` is a span link from the later step to the earlier one.
-A span is one unit of work — a batch, a document, an interpretation, a run of
+A span is one unit of work — a request, a document, an interpretation, a run of
 events applied, a feed response — and links once per distinct trace it read,
 up to the SDK's link limit, recording how many it left out. The journal and
 the genealogy events store the `traceparent` only; the change feed hands it on
