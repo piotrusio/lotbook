@@ -8,14 +8,15 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"lotbook.org/lotbook/internal/platform/server"
+	"lotbook.org/lotbook/internal/platform/telemetry"
 )
 
 const usage = `usage: lotbook <role> [flags]
@@ -61,7 +62,20 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 2
 	}
 
-	log := slog.New(slog.NewJSONHandler(stdout, nil)).With("role", role)
+	log := telemetry.Logger(stdout).With("role", role)
+	tp, err := telemetry.Tracing(ctx, role)
+	if err != nil {
+		log.Error("cannot set up tracing", "err", err)
+		return 1
+	}
+	defer func() {
+		flushing, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if err := tp.Shutdown(flushing); err != nil {
+			log.Error("cannot flush traces", "err", err)
+		}
+	}()
+
 	var lc net.ListenConfig
 	ln, err := lc.Listen(ctx, "tcp", *addr)
 	if err != nil {
@@ -69,7 +83,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 1
 	}
 	log.Info("serving", "addr", ln.Addr().String())
-	if err := server.Run(ctx, ln, server.Config{Drain: *drain, Grace: *grace}); err != nil {
+	routes := http.NewServeMux()
+	cfg := server.Config{Handler: telemetry.HTTP(tp, routes), Drain: *drain, Grace: *grace}
+	if err := server.Run(ctx, ln, cfg); err != nil {
 		log.Error("stopped with an error", "err", err)
 		return 1
 	}

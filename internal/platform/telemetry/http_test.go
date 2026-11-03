@@ -36,7 +36,7 @@ func TestHTTP_continuesTheCallersTraceAndNamesTheSpanByRoute(t *testing.T) {
 	if !p.IsRemote() || p.TraceID().String() != "4bf92f3577b34da6a3ce929d0e0e4736" || p.SpanID().String() != "00f067aa0ba902b7" {
 		t.Errorf("parent = %v %v remote=%v; want the caller's traceparent", p.TraceID(), p.SpanID(), p.IsRemote())
 	}
-	if inside != s.SpanContext() {
+	if !inside.Equal(s.SpanContext()) {
 		t.Error("the handler does not see the request's span in its context")
 	}
 	want := map[attribute.Key]attribute.Value{
@@ -50,7 +50,7 @@ func TestHTTP_continuesTheCallersTraceAndNamesTheSpanByRoute(t *testing.T) {
 	}
 	for k, v := range want {
 		if got[k] != v {
-			t.Errorf("attribute %s = %v; want %v", k, got[k].Emit(), v.Emit())
+			t.Errorf("attribute %s = %v; want %v", k, got[k].String(), v.String())
 		}
 	}
 }
