@@ -12,9 +12,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	"lotbook.org/lotbook/internal/ingest"
+	"lotbook.org/lotbook/internal/journal"
 	"lotbook.org/lotbook/internal/platform/server"
 	"lotbook.org/lotbook/internal/platform/telemetry"
 )
@@ -55,11 +58,16 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	addr := flags.String("addr", ":8080", "address to serve on")
 	drain := flags.Duration("drain", 5*time.Second, "how long to report not ready before stopping")
 	grace := flags.Duration("grace", 20*time.Second, "how long requests in flight may take to finish")
+	kafkaBrokers := flags.String("kafka-brokers", "", "Kafka brokers to start from, comma-separated (ingest)")
+	journalTopic := flags.String("journal-topic", "lotbook.journal", "the journal's Kafka topic")
 	if err := flags.Parse(args[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
 		}
 		return 2
+	}
+	if role == "ingest" && *kafkaBrokers == "" {
+		return refuse(stderr, "lotbook ingest: -kafka-brokers is required\n\n")
 	}
 
 	log := telemetry.Logger(stdout).With("role", role)
@@ -84,6 +92,15 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 	log.Info("serving", "addr", ln.Addr().String())
 	routes := http.NewServeMux()
+	if role == "ingest" {
+		j, err := journal.NewKafka(strings.Split(*kafkaBrokers, ","), *journalTopic)
+		if err != nil {
+			log.Error("cannot reach the journal", "err", err)
+			return 1
+		}
+		defer j.Close()
+		ingest.Routes(routes, j)
+	}
 	cfg := server.Config{Handler: telemetry.HTTP(tp, routes), Drain: *drain, Grace: *grace}
 	if err := server.Run(ctx, ln, cfg); err != nil {
 		log.Error("stopped with an error", "err", err)
