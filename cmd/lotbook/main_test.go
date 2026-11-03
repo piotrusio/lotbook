@@ -25,29 +25,64 @@ func TestRun_refusesAMissingOrUnknownRole(t *testing.T) {
 func TestRun_eachRoleServesTheProbesAndStopsCleanly(t *testing.T) {
 	for _, role := range []string{"ingest", "worker", "query"} {
 		t.Run(role, func(t *testing.T) {
-			addr := freeAddr(t)
-			ctx, cancel := context.WithCancel(t.Context())
-			var stdout, stderr bytes.Buffer
-			done := make(chan int, 1)
-			go func() {
-				done <- run(ctx, []string{role, "-addr", addr, "-drain", "0s", "-grace", "1s"}, &stdout, &stderr)
-			}()
+			addr, stop := start(t, role, "-kafka-brokers", "127.0.0.1:1")
 
-			waitHealthy(t, "http://"+addr+"/healthz", done)
-			if got := status(t, "http://"+addr+"/readyz"); got != http.StatusOK {
+			if got := status(t, http.MethodGet, "http://"+addr+"/readyz", ""); got != http.StatusOK {
 				t.Errorf("GET /readyz = %d; want 200", got)
 			}
 
-			cancel()
-			select {
-			case code := <-done:
-				if code != 0 {
-					t.Errorf("run exited %d; want 0; stderr: %s; stdout: %s", code, stderr.String(), stdout.String())
-				}
-			case <-time.After(5 * time.Second):
-				t.Fatal("run did not stop")
+			if code := stop(); code != 0 {
+				t.Errorf("run exited %d; want 0", code)
 			}
 		})
+	}
+}
+
+func TestRun_ingestServesTheIngestContract(t *testing.T) {
+	addr, stop := start(t, "ingest", "-kafka-brokers", "127.0.0.1:1")
+	defer stop()
+
+	if got := status(t, http.MethodPost, "http://"+addr+"/v1/source-events", `{"records": [`); got != http.StatusBadRequest {
+		t.Errorf("POST /v1/source-events with a malformed body = %d; want 400", got)
+	}
+}
+
+func TestRun_ingestRefusesToStartWithoutKafka(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	var stdout, stderr bytes.Buffer
+	if code := run(ctx, []string{"ingest", "-addr", freeAddr(t)}, &stdout, &stderr); code != 2 {
+		t.Errorf("ingest without -kafka-brokers exited %d; want 2", code)
+	}
+	if !strings.Contains(stderr.String(), "-kafka-brokers") {
+		t.Errorf("stderr does not say what is missing: %s", stderr.String())
+	}
+}
+
+// start runs a role on a free address until the returned stop is called,
+// which returns its exit code.
+func start(t *testing.T, role string, flags ...string) (string, func() int) {
+	t.Helper()
+	addr := freeAddr(t)
+	ctx, cancel := context.WithCancel(t.Context())
+	var stdout, stderr bytes.Buffer
+	done := make(chan int, 1)
+	args := append([]string{role, "-addr", addr, "-drain", "0s", "-grace", "1s"}, flags...)
+	go func() { done <- run(ctx, args, &stdout, &stderr) }()
+
+	waitHealthy(t, "http://"+addr+"/healthz", done)
+	return addr, func() int {
+		cancel()
+		select {
+		case code := <-done:
+			if code != 0 {
+				t.Logf("stderr: %s; stdout: %s", stderr.String(), stdout.String())
+			}
+			return code
+		case <-time.After(5 * time.Second):
+			t.Fatal("run did not stop")
+			return -1
+		}
 	}
 }
 
@@ -74,7 +109,7 @@ func waitHealthy(t *testing.T, url string, done <-chan int) {
 			t.Fatalf("run exited %d before serving", code)
 		default:
 		}
-		if status(t, url) == http.StatusOK {
+		if status(t, http.MethodGet, url, "") == http.StatusOK {
 			return
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -82,8 +117,8 @@ func waitHealthy(t *testing.T, url string, done <-chan int) {
 	t.Fatalf("%s never answered 200", url)
 }
 
-func status(t *testing.T, url string) int {
-	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, url, nil)
+func status(t *testing.T, method, url, body string) int {
+	req, err := http.NewRequestWithContext(t.Context(), method, url, strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
 	}
