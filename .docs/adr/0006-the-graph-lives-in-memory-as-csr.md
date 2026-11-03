@@ -68,4 +68,4 @@ approach that fails at this scale.
   across partitions are a problem of their own. Not designed now; nothing
   here may rule it out.
 - `-` Compaction, snapshots and replica bootstrap are Lotbook's to build and
-  run; they are explicit commands of the binary (ADR-0010).
+  run; they are explicit commands of the binary (ADR-0016).

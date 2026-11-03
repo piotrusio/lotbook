@@ -46,8 +46,8 @@ spread over the brokers and the workers.
   and the journal position it consumed commit in one PostgreSQL
   transaction.** A worker that fails resumes from the position PostgreSQL
   holds; nothing is interpreted twice and nothing is skipped.
-- **Kafka is installed with Lotbook through a Kubernetes operator**, as
-  PostgreSQL is (ADR-0010), as several brokers with replication.
+- **Kafka is provided by the environment**, as PostgreSQL is (ADR-0016),
+  as several brokers with replication.
 
 ## Consequences
 
@@ -57,8 +57,8 @@ spread over the brokers and the workers.
   share, come from Kafka's consumer groups, not from code of ours.
 - `+` Between the journal and the genealogy there is one transaction, not an
   outbox: the position consumed is committed with what was concluded from it.
-- `-` A second stateful system in every installation — at least three brokers
-  — operated and upgraded by the installation.
+- `-` A second stateful system every installation requires — at least three
+  brokers — operated and upgraded by the environment (ADR-0016).
 - `-` The largest single source is bound by what one partition and one worker
   take.
 - `-` A Kafka client is a new dependency, added by its own ADR (ADR-0007,

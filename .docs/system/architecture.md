@@ -13,16 +13,18 @@
                                                   │          API       feed     (read schema,
                                                   ▼                              DB replica)
                                       Kafka (journal), PostgreSQL
-                         └──────────────── one Kubernetes cluster ────────────────┘
+                                        from the environment
 ```
 
-Only HTTPS crosses the cluster's edge: the ingest contract inbound
+Lotbook's own interfaces are HTTPS only: the ingest contract inbound
 (`POST /v1/source-events`,
 [ADR-0014](../adr/0014-the-ingest-contract-accepts-persists-and-answers.md),
 contract in [`contracts/ingest/v1/openapi.json`](../../contracts/ingest/v1/openapi.json)),
-the traversal API and the change feed outbound. Kafka and PostgreSQL are
-reachable from Lotbook's pods only, except the PostgreSQL read replica
-exposed for SQL consumers.
+the traversal API and the change feed outbound. Kafka and PostgreSQL are the
+environment's
+([ADR-0016](../adr/0016-kubernetes-with-postgresql-and-kafka-from-the-environment.md));
+Lotbook's pods reach them, and SQL consumers reach the PostgreSQL read
+replica.
 
 ## Roles
 
@@ -144,25 +146,35 @@ messages and the `klauspost/compress` and `lz4` codecs.
 
 ## Platform
 
-Lotbook runs on Kubernetes, at least three worker nodes
-([ADR-0010](../adr/0010-kubernetes-with-an-object-store-from-the-environment.md)),
-and installs with:
+Lotbook runs on Kubernetes, at least three worker nodes, and takes
+PostgreSQL, Kafka and object storage from the environment
+([ADR-0016](../adr/0016-kubernetes-with-postgresql-and-kafka-from-the-environment.md)).
+The Helm chart installs Lotbook alone. The environment provides:
 
-- **PostgreSQL** through the CloudNativePG operator — three instances,
-  streaming replication, automatic failover, backups;
-- **Kafka** through the Strimzi operator — at least three brokers in KRaft
-  mode, the journal replicated across them
+- **PostgreSQL** — several instances, streaming replication, automatic
+  failover, backups; a database and an owning role for Lotbook; a read
+  replica for SQL consumers;
+- **Kafka** — at least three brokers in KRaft mode, the journal replicated
+  across them
   ([ADR-0009](../adr/0009-the-journal-is-a-kafka-log-partitioned-by-source.md));
-  the journal's topic with unlimited retention, no compaction, and tiered
-  storage moving closed segments to object storage through an S3 remote
-  storage plugin in the broker image
+  tiered storage enabled on the brokers through an S3 remote storage plugin
+  in the broker image
   ([ADR-0011](../adr/0011-the-journal-is-kept-for-ever-through-tiered-storage.md));
-- **graph snapshots** on each `query` replica's persistent volume, copied
-  between replicas when a new one starts.
+  an identity for Lotbook that may produce to and consume the journal's topic;
+- **an S3-compatible object store** behind Kafka's tiered storage — a cloud
+  provider's, or one run on premises.
 
-It takes from the environment one thing: an **S3-compatible object store**
-for the journal's cold segments — a cloud provider's, or one run on premises.
+The journal's topic is Lotbook's: its migration command creates it with
+`cleanup.policy=delete`, `retention.ms=-1`, `retention.bytes=-1`,
+`remote.storage.enable=true`, replication factor 3 and
+`min.insync.replicas=2`. Where the environment creates topics itself, that
+configuration is the requirement. Lotbook checks the versions, the topic and
+its own rights with a command before an install and in every role at start,
+and is not ready while any check fails.
 
-Installed with a Helm chart. Migrations, compaction and snapshots are
-explicit commands of the binary. A single-node install is for evaluation and
-development only.
+Graph snapshots live on each `query` replica's persistent volume, copied
+between replicas when a new one starts.
+
+Migrations, compaction and snapshots are explicit commands of the binary.
+Evaluation and development run without Kubernetes, with PostgreSQL and Kafka
+started locally.

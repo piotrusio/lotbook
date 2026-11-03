@@ -34,7 +34,7 @@ Weighed and rejected:
 ## Decision
 
 **The journal's topic is kept for ever and never compacted, and Kafka's
-tiered storage moves its closed segments to object storage** (ADR-0010).
+tiered storage moves its closed segments to object storage** (ADR-0016).
 
 - **Retention is unlimited**, in time and in size. Compaction is off: it keeps
   only the latest value of a key, and would erase the history the record
@@ -55,7 +55,7 @@ tiered storage moves its closed segments to object storage** (ADR-0010).
 - `-` Reading cold history is slower than reading the head, bound by object
   storage; a full rebuild is a long, sequential read.
 - `-` The brokers carry a remote storage plugin for the S3 API, which the
-  Kafka distribution does not ship; it is part of the broker image the
-  installation runs.
+  Kafka distribution does not ship; it is part of the Kafka the environment
+  provides (ADR-0016).
 - `-` The record's durability past the hot window is the object store's
-  (ADR-0010).
+  (ADR-0016).

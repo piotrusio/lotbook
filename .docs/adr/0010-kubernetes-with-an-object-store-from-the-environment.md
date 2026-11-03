@@ -1,9 +1,9 @@
 # ADR-0010: Lotbook runs on Kubernetes, brings its databases and takes object storage from the environment
 
-- **Status:** Accepted
+- **Status:** Superseded
 - **Date:** 2026-10-28
 - **Supersedes:** ADR-0002
-- **Superseded-by:** —
+- **Superseded-by:** ADR-0016
 - **Issue/PR:** —
 
 ## Context
