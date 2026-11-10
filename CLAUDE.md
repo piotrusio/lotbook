@@ -42,4 +42,5 @@ The one exception lasts one turn: at the `test` commit the tests are red on purp
 | Anything about how the system is shaped | [`.docs/system/architecture.md`](.docs/system/architecture.md) |
 | Why it is shaped that way | [`.docs/adr/`](.docs/adr/) |
 | What a public interface accepts and answers | [`contracts/`](contracts/) |
+| What an installation must provide, and how it is installed | [`.docs/system/installation.md`](.docs/system/installation.md) |
 | Writing or changing anything under `.docs/` | [`.docs/CLAUDE.md`](.docs/CLAUDE.md) |

@@ -1,7 +1,9 @@
 # Architecture
 
-> **Designed, not built.** This describes the target the ADRs fix. Of it, only
-> the `cmd/lotbook` entry point exists today.
+> **Partly built.** This describes the target the ADRs fix. Built so far, as a
+> walking skeleton: `ingest` writing source records to the journal in Kafka,
+> `worker` taking them into PostgreSQL, `migrate`, and the Helm chart. What an
+> installation needs today is in [installation.md](installation.md).
 
 ## Context
 
@@ -164,13 +166,13 @@ The Helm chart installs Lotbook alone. The environment provides:
 - **an S3-compatible object store** behind Kafka's tiered storage — a cloud
   provider's, or one run on premises.
 
-The journal's topic is Lotbook's: its migration command creates it with
-`cleanup.policy=delete`, `retention.ms=-1`, `retention.bytes=-1`,
-`remote.storage.enable=true`, replication factor 3 and
-`min.insync.replicas=2`. Where the environment creates topics itself, that
-configuration is the requirement. Lotbook checks the versions, the topic and
-its own rights with a command before an install and in every role at start,
-and is not ready while any check fails.
+The journal's topic is Lotbook's: its migration command creates it kept for
+ever, never compacted, in tiered storage and replicated three times. Where
+the environment creates topics itself, that configuration is the
+requirement. Lotbook checks the versions, the topic and its own rights with a
+command before an install and in every role at start, and is not ready while
+any check fails. What each setting is, and which of this is built, is in
+[installation.md](installation.md).
 
 Graph snapshots live on each `query` replica's persistent volume, copied
 between replicas when a new one starts.
