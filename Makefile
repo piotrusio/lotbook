@@ -2,6 +2,13 @@ GOLANGCI_LINT_VERSION := v2.15.0
 BIN := $(CURDIR)/bin
 GOLANGCI_LINT := $(BIN)/golangci-lint
 
+# The image: the toolchain it is built with is go.mod's, and every published
+# tag names the commit it was built from.
+GO_VERSION := $(shell awk '/^go /{print $$2}' go.mod)
+REVISION := $(shell git rev-parse HEAD 2>/dev/null)
+IMAGE ?= ghcr.io/piotrusio/lotbook
+PLATFORMS := linux/amd64,linux/arm64
+
 # Where the integration tests find compose.yaml's PostgreSQL and Kafka.
 TEST_POSTGRES_URL := postgres://lotbook:lotbook@localhost:55432/lotbook?sslmode=disable
 TEST_KAFKA_BROKERS := localhost:59092
@@ -57,6 +64,19 @@ build:  ## Build the lotbook binary into ./bin
 .PHONY: run
 run:  ## Run lotbook
 	go run ./cmd/lotbook
+
+.PHONY: image
+image:  ## Build the image for this machine, as lotbook:dev
+	docker build --build-arg GO_VERSION=$(GO_VERSION) --build-arg REVISION=$(REVISION) -t lotbook:dev .
+
+# Multi-platform images need a builder of the docker-container kind; one named
+# lotbook is made the first time and reused after.
+.PHONY: image-push
+image-push:  ## Build the image for every platform and push it as $(IMAGE):<commit> and :main
+	docker buildx inspect lotbook >/dev/null 2>&1 || docker buildx create --name lotbook --driver docker-container
+	docker buildx build --builder lotbook --platform $(PLATFORMS) \
+		--build-arg GO_VERSION=$(GO_VERSION) --build-arg REVISION=$(REVISION) \
+		-t $(IMAGE):$(REVISION) -t $(IMAGE):main --push .
 
 # ============================================================
 #  GATES
