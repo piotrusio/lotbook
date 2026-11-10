@@ -1,0 +1,10 @@
+apiVersion: v2
+name: lotbook
+description: >-
+  Lot genealogy engine. Installs Lotbook alone; PostgreSQL and Kafka come from
+  the environment (ADR-0016).
+type: application
+version: 0.1.0
+home: https://github.com/piotrusio/lotbook
+sources:
+  - https://github.com/piotrusio/lotbook

@@ -1,0 +1,32 @@
+# Runs before the workloads of an install or an upgrade are applied, so that
+# no worker starts on a schema older than its own; an upgrade whose migration
+# fails stops there.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "lotbook.fullname" . }}-migrate
+  labels:
+    {{- include "lotbook.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migrate
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  activeDeadlineSeconds: {{ .Values.migrate.activeDeadlineSeconds }}
+  backoffLimit: {{ .Values.migrate.backoffLimit }}
+  template:
+    metadata:
+      labels:
+        {{- include "lotbook.labels" . | nindent 8 }}
+        app.kubernetes.io/component: migrate
+    spec:
+      {{- include "lotbook.podSpec" . | nindent 6 }}
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          {{- include "lotbook.container" . | nindent 10 }}
+          args: ["migrate"]
+          env:
+            {{- include "lotbook.env" (dict "root" . "kafka" false "postgres" true) | nindent 12 }}
+          resources:
+            {{- toYaml .Values.migrate.resources | nindent 12 }}

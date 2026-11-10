@@ -1,0 +1,1 @@
+{{ include "lotbook.role" (dict "root" . "role" "worker" "values" .Values.worker "args" (list "-worker-group" .Values.worker.group) "postgres" true) }}

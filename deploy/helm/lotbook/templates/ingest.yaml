@@ -1,0 +1,17 @@
+{{ include "lotbook.role" (dict "root" . "role" "ingest" "values" .Values.ingest "args" (list) "postgres" false) }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "lotbook.fullname" . }}-ingest
+  labels:
+    {{- include "lotbook.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ingest
+spec:
+  selector:
+    {{- include "lotbook.selector" . | nindent 4 }}
+    app.kubernetes.io/component: ingest
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http

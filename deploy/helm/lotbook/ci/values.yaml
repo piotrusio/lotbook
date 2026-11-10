@@ -1,0 +1,24 @@
+# The values `make chart` lints and renders the chart with: every option that
+# changes what is rendered, switched on.
+image:
+  tag: "0000000000000000000000000000000000000000"
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+kafka:
+  brokers: kafka-0.kafka:9092,kafka-1.kafka:9092,kafka-2.kafka:9092
+postgres:
+  existingSecret: lotbook-postgres
+env:
+  - name: OTEL_EXPORTER_OTLP_ENDPOINT
+    value: http://otel-collector:4318
+serviceAccountName: lotbook
+ingress:
+  enabled: true
+  className: nginx
+  host: lotbook.example.com
+  tlsSecretName: lotbook-tls
+httpRoute:
+  enabled: true
+  parentRefs:
+    - name: gateway
+      namespace: gateway
+  hostnames: [lotbook.example.com]

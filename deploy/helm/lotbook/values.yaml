@@ -1,0 +1,85 @@
+# Lotbook takes PostgreSQL and Kafka from the environment (ADR-0016); this
+# chart says where they are and installs nothing but Lotbook.
+
+image:
+  repository: ghcr.io/piotrusio/lotbook
+  # Required. The commit to run, as the image is tagged: its full git sha.
+  tag: ""
+  # When set, the image is pulled by this digest and the tag is only a label.
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+kafka:
+  # Required. The brokers to start from, comma-separated.
+  brokers: ""
+  # The journal's topic. It is created with the configuration the cluster
+  # requirements state, never by a first write.
+  journalTopic: lotbook.journal
+
+postgres:
+  # Required. A Secret in the release's namespace holding the PostgreSQL
+  # connection URL. The URL reaches the processes through the environment,
+  # never through values or command lines.
+  existingSecret: ""
+  key: url
+
+ingest:
+  replicas: 2
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { memory: 256Mi }
+
+worker:
+  # Workers share the journal's partitions; more workers than partitions
+  # leaves some idle.
+  replicas: 2
+  group: lotbook.worker
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits: { memory: 256Mi }
+
+# Brings the schema up to date before every install and upgrade.
+migrate:
+  activeDeadlineSeconds: 600
+  backoffLimit: 2
+  resources:
+    requests: { cpu: 50m, memory: 64Mi }
+    limits: { memory: 128Mi }
+
+# How a pod stops: for drainSeconds it answers /readyz with 503 so traffic is
+# routed away, then requests in flight get graceSeconds to finish.
+shutdown:
+  drainSeconds: 5
+  graceSeconds: 20
+
+# Environment added to every container — OTEL_EXPORTER_OTLP_ENDPOINT and the
+# other OTEL_* variables, for instance.
+env: []
+
+# A ServiceAccount that already exists, for workload identity. Empty runs the
+# pods as the namespace's default. Lotbook never calls the Kubernetes API, so
+# no token is mounted either way.
+serviceAccountName: ""
+
+service:
+  port: 80
+
+# Exposes POST /v1/source-events through an Ingress, TLS terminated there.
+ingress:
+  enabled: false
+  className: ""
+  host: ""
+  tlsSecretName: ""
+  annotations: {}
+
+# The same through the Gateway API, for clusters that route with it.
+httpRoute:
+  enabled: false
+  parentRefs: []
+  hostnames: []
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []

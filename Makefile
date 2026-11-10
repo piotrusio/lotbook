@@ -1,6 +1,9 @@
 GOLANGCI_LINT_VERSION := v2.15.0
+HELM_VERSION := v4.3.1
 BIN := $(CURDIR)/bin
 GOLANGCI_LINT := $(BIN)/golangci-lint
+HELM := $(BIN)/helm
+CHART := deploy/helm/lotbook
 
 # The image: the toolchain it is built with is go.mod's, and every published
 # tag names the commit it was built from.
@@ -27,15 +30,19 @@ RESET := \033[0m
 setup: tools hooks  ## Initial setup — installs tooling and git hooks
 	@printf "%b\n" "$(GREEN)✓ Setup complete.$(RESET)"
 
-# golangci-lint is pinned and installed into ./bin rather than tracked as a
-# go tool: its dependencies would otherwise be resolved together with ours.
-# lefthook and govulncheck are go tools, pinned in go.mod.
+# golangci-lint and helm are pinned and installed into ./bin rather than
+# tracked as go tools: their dependencies would otherwise be resolved together
+# with ours. lefthook and govulncheck are go tools, pinned in go.mod.
 .PHONY: tools
-tools: $(GOLANGCI_LINT)  ## Install pinned tooling into ./bin
+tools: $(GOLANGCI_LINT) $(HELM)  ## Install pinned tooling into ./bin
 
 $(GOLANGCI_LINT):
 	@printf "%b\n" "$(CYAN)→ Installing golangci-lint $(GOLANGCI_LINT_VERSION)...$(RESET)"
 	GOBIN=$(BIN) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+
+$(HELM):
+	@printf "%b\n" "$(CYAN)→ Installing helm $(HELM_VERSION)...$(RESET)"
+	GOBIN=$(BIN) go install helm.sh/helm/v4/cmd/helm@$(HELM_VERSION)
 
 .PHONY: hooks
 hooks:  ## Register git hooks
@@ -83,7 +90,7 @@ image-push:  ## Build the image for every platform and push it as $(IMAGE):<comm
 # ============================================================
 
 .PHONY: check
-check: lint integration vuln tidy-check  ## Everything CI runs
+check: lint chart integration vuln tidy-check  ## Everything CI runs
 
 .PHONY: test
 test:  ## Run tests with the race detector; those needing PostgreSQL or Kafka skip
@@ -113,6 +120,14 @@ fix: $(GOLANGCI_LINT)  ## Auto-fix lint issues (formatting, godot, misspell…)
 .PHONY: fmt
 fmt:  ## Format code
 	gofmt -w .
+
+# Without values the chart must refuse to render, and with every option of
+# ci/values.yaml switched on it must lint and render clean.
+.PHONY: chart
+chart: $(HELM)  ## Lint and render the Helm chart
+	$(HELM) lint --strict $(CHART) --values $(CHART)/ci/values.yaml
+	$(HELM) template lotbook $(CHART) --values $(CHART)/ci/values.yaml >/dev/null
+	! $(HELM) template lotbook $(CHART) >/dev/null 2>&1
 
 .PHONY: vuln
 vuln:  ## Check dependencies and the toolchain for known vulnerabilities

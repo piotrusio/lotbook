@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["image", "kafka", "postgres"],
+  "properties": {
+    "image": {
+      "type": "object",
+      "required": ["repository", "tag"],
+      "properties": {
+        "repository": { "type": "string", "minLength": 1 },
+        "tag": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The commit to run, as the image is tagged."
+        },
+        "digest": { "type": "string", "pattern": "^(|sha256:[0-9a-f]{64})$" },
+        "pullPolicy": { "enum": ["Always", "IfNotPresent", "Never"] }
+      }
+    },
+    "kafka": {
+      "type": "object",
+      "required": ["brokers", "journalTopic"],
+      "properties": {
+        "brokers": { "type": "string", "minLength": 1 },
+        "journalTopic": { "type": "string", "minLength": 1 }
+      }
+    },
+    "postgres": {
+      "type": "object",
+      "required": ["existingSecret", "key"],
+      "properties": {
+        "existingSecret": { "type": "string", "minLength": 1 },
+        "key": { "type": "string", "minLength": 1 }
+      }
+    },
+    "ingest": { "$ref": "#/$defs/workload" },
+    "worker": { "$ref": "#/$defs/workload" },
+    "shutdown": {
+      "type": "object",
+      "properties": {
+        "drainSeconds": { "type": "integer", "minimum": 0 },
+        "graceSeconds": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "if": { "properties": { "enabled": { "const": true } } },
+      "then": { "required": ["host"], "properties": { "host": { "minLength": 1 } } }
+    },
+    "httpRoute": {
+      "type": "object",
+      "if": { "properties": { "enabled": { "const": true } } },
+      "then": { "properties": { "parentRefs": { "minItems": 1 } } }
+    }
+  },
+  "$defs": {
+    "workload": {
+      "type": "object",
+      "properties": {
+        "replicas": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}
