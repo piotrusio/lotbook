@@ -3,11 +3,20 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net"
 	"net/http"
+	"net/url"
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/twmb/franz-go/pkg/kerr"
+	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/twmb/franz-go/pkg/kmsg"
 )
 
 func TestRun_refusesAMissingOrUnknownRole(t *testing.T) {
@@ -22,8 +31,10 @@ func TestRun_refusesAMissingOrUnknownRole(t *testing.T) {
 	}
 }
 
+// The worker needs a PostgreSQL and a Kafka to start; it is run end to end
+// in TestRun_aSourceEventReachesPostgreSQL.
 func TestRun_eachRoleServesTheProbesAndStopsCleanly(t *testing.T) {
-	for _, role := range []string{"ingest", "worker", "query"} {
+	for _, role := range []string{"ingest", "query"} {
 		t.Run(role, func(t *testing.T) {
 			addr, stop := start(t, role, "-kafka-brokers", "127.0.0.1:1")
 
@@ -47,15 +58,65 @@ func TestRun_ingestServesTheIngestContract(t *testing.T) {
 	}
 }
 
-func TestRun_ingestRefusesToStartWithoutKafka(t *testing.T) {
-	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
-	defer cancel()
-	var stdout, stderr bytes.Buffer
-	if code := run(ctx, []string{"ingest", "-addr", freeAddr(t)}, &stdout, &stderr); code != 2 {
-		t.Errorf("ingest without -kafka-brokers exited %d; want 2", code)
+func TestRun_refusesToStartWithoutWhatTheRoleNeeds(t *testing.T) {
+	for _, c := range []struct {
+		args    []string
+		missing string
+	}{
+		{[]string{"ingest"}, "-kafka-brokers"},
+		{[]string{"worker", "-kafka-brokers", "127.0.0.1:1"}, "-postgres-url"},
+		{[]string{"worker", "-postgres-url", "postgres://127.0.0.1:1/lotbook"}, "-kafka-brokers"},
+		{[]string{"migrate"}, "-postgres-url"},
+	} {
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+		var stdout, stderr bytes.Buffer
+		if code := run(ctx, append(c.args, "-addr", freeAddr(t)), &stdout, &stderr); code != 2 {
+			t.Errorf("%v exited %d; want 2", c.args, code)
+		}
+		if !strings.Contains(stderr.String(), c.missing) {
+			t.Errorf("%v: stderr does not say %s is missing: %s", c.args, c.missing, stderr.String())
+		}
+		cancel()
 	}
-	if !strings.Contains(stderr.String(), "-kafka-brokers") {
-		t.Errorf("stderr does not say what is missing: %s", stderr.String())
+}
+
+func TestRun_aSourceEventReachesPostgreSQL(t *testing.T) {
+	seeds, postgres := os.Getenv("LOTBOOK_TEST_KAFKA_BROKERS"), os.Getenv("LOTBOOK_TEST_POSTGRES_URL")
+	if seeds == "" || postgres == "" {
+		t.Skip("LOTBOOK_TEST_KAFKA_BROKERS and LOTBOOK_TEST_POSTGRES_URL are not set; this test needs a Kafka and a PostgreSQL")
+	}
+	topic := createTopic(t, seeds)
+	postgres = freshSchema(t, postgres)
+	kafka := []string{"-kafka-brokers", seeds, "-journal-topic", topic}
+
+	var stdout, stderr bytes.Buffer
+	if code := run(t.Context(), []string{"migrate", "-postgres-url", postgres}, &stdout, &stderr); code != 0 {
+		t.Fatalf("migrate exited %d; stderr: %s; stdout: %s", code, stderr.String(), stdout.String())
+	}
+	ingest, stopIngest := start(t, "ingest", kafka...)
+	defer stopIngest()
+	_, stopWorker := start(t, "worker", append(kafka, "-postgres-url", postgres, "-worker-group", topic)...)
+
+	if got := status(t, http.MethodPost, "http://"+ingest+"/v1/source-events", transactionExample(t)); got != http.StatusAccepted {
+		t.Fatalf("POST /v1/source-events = %d; want 202", got)
+	}
+
+	conn, err := pgx.Connect(t.Context(), postgres)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close(t.Context())
+	var n int
+	for deadline := time.Now().Add(20 * time.Second); time.Now().Before(deadline); time.Sleep(100 * time.Millisecond) {
+		if err := conn.QueryRow(t.Context(), `SELECT count(*) FROM skeleton_records WHERE source = 'plant-a.erp'`).Scan(&n); err == nil && n == 3 {
+			break
+		}
+	}
+	if n != 3 {
+		t.Errorf("PostgreSQL holds %d records of plant-a.erp; want the transaction's 3", n)
+	}
+	if code := stopWorker(); code != 0 {
+		t.Errorf("the worker exited %d; want 0", code)
 	}
 }
 
@@ -84,6 +145,76 @@ func start(t *testing.T, role string, flags ...string) (string, func() int) {
 			return -1
 		}
 	}
+}
+
+func transactionExample(t *testing.T) string {
+	t.Helper()
+	raw, err := os.ReadFile("../../contracts/ingest/v1/openapi.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		Components struct {
+			Examples map[string]struct{ Value json.RawMessage }
+		}
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	return string(doc.Components.Examples["transaction"].Value)
+}
+
+func createTopic(t *testing.T, seeds string) string {
+	t.Helper()
+	cl, err := kgo.NewClient(kgo.SeedBrokers(strings.Split(seeds, ",")...))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer cl.Close()
+	name := "lotbook-test-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	topic := kmsg.NewCreateTopicsRequestTopic()
+	topic.Topic, topic.NumPartitions, topic.ReplicationFactor = name, 3, 1
+	req := kmsg.NewPtrCreateTopicsRequest()
+	req.Topics = append(req.Topics, topic)
+	resp, err := req.RequestWith(t.Context(), cl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := kerr.ErrorForCode(resp.Topics[0].ErrorCode); err != nil {
+		t.Fatalf("create topic %s: %v", name, err)
+	}
+	return name
+}
+
+// freshSchema makes a schema of its own in the database at postgres and
+// returns a URL that works inside it.
+func freshSchema(t *testing.T, postgres string) string {
+	t.Helper()
+	name := "test_" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	admin, err := pgx.Connect(t.Context(), postgres)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer admin.Close(t.Context())
+	if _, err := admin.Exec(t.Context(), "CREATE SCHEMA "+name); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if c, err := pgx.Connect(ctx, postgres); err == nil {
+			_, _ = c.Exec(ctx, "DROP SCHEMA "+name+" CASCADE")
+			_ = c.Close(ctx)
+		}
+	})
+	u, err := url.Parse(postgres)
+	if err != nil {
+		t.Fatal(err)
+	}
+	q := u.Query()
+	q.Set("search_path", name)
+	u.RawQuery = q.Encode()
+	return u.String()
 }
 
 func freeAddr(t *testing.T) string {
