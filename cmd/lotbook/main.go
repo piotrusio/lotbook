@@ -36,7 +36,9 @@ roles:
 commands:
   migrate  brings the PostgreSQL schema up to date, then exits
 
-lotbook <role|command> -h lists its flags.
+lotbook <role|command> -h lists its flags. Every flag can also be set in the
+environment as LOTBOOK_<FLAG> — -postgres-url as LOTBOOK_POSTGRES_URL — and a
+flag given on the command line wins.
 `
 
 func main() {
@@ -88,6 +90,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	flags.StringVar(&o.journalTopic, "journal-topic", "lotbook.journal", "the journal's Kafka topic (ingest, worker)")
 	flags.StringVar(&o.workerGroup, "worker-group", "lotbook.worker", "the workers' Kafka consumer group (worker)")
 	flags.StringVar(&o.postgresURL, "postgres-url", "", "PostgreSQL connection URL (worker, migrate)")
+	if reason := fromEnvironment(flags); reason != "" {
+		return refuse(stderr, fmt.Sprintf("lotbook %s: %s\n\n", name, reason))
+	}
 	if err := flags.Parse(args[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -188,6 +193,22 @@ func serve(ctx context.Context, log *slog.Logger, role string, o options) int {
 	}
 	log.Info("stopped")
 	return 0
+}
+
+// fromEnvironment sets every flag whose LOTBOOK_<FLAG> variable is set, so
+// that a secret such as the PostgreSQL URL can reach the process without
+// being on its command line. It returns why a variable is refused, or "".
+func fromEnvironment(flags *flag.FlagSet) string {
+	var reason string
+	flags.VisitAll(func(f *flag.Flag) {
+		name := "LOTBOOK_" + strings.ToUpper(strings.ReplaceAll(f.Name, "-", "_"))
+		if v, ok := os.LookupEnv(name); ok && reason == "" {
+			if err := f.Value.Set(v); err != nil {
+				reason = fmt.Sprintf("%s: %v", name, err)
+			}
+		}
+	})
+	return reason
 }
 
 // refuse prints why lotbook was started wrongly and how to start it, and
