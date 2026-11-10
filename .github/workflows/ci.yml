@@ -32,6 +32,23 @@ jobs:
           key: tools-${{ runner.os }}-${{ hashFiles('Makefile') }}
       - run: make check
 
+  # The image is published from main only, once the gate has passed, tagged
+  # with the commit it was built from. What is built, and how, is the
+  # Makefile's.
+  image:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      - run: make image-push
+
   # PRs are squash-merged and the title becomes the commit on main.
   pr-title:
     if: github.event_name == 'pull_request'
