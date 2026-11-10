@@ -2,6 +2,10 @@ GOLANGCI_LINT_VERSION := v2.15.0
 BIN := $(CURDIR)/bin
 GOLANGCI_LINT := $(BIN)/golangci-lint
 
+# Where the integration tests find compose.yaml's PostgreSQL and Kafka.
+TEST_POSTGRES_URL := postgres://lotbook:lotbook@localhost:55432/lotbook?sslmode=disable
+TEST_KAFKA_BROKERS := localhost:59092
+
 CYAN  := \033[36m
 GREEN := \033[32m
 RESET := \033[0m
@@ -38,6 +42,14 @@ hooks-run:  ## Run the pre-commit hooks against all files
 #  BUILD & RUN
 # ============================================================
 
+.PHONY: up
+up:  ## Start PostgreSQL and Kafka for development and the integration tests
+	docker compose up -d --wait
+
+.PHONY: down
+down:  ## Stop them, and drop what they held
+	docker compose down
+
 .PHONY: build
 build:  ## Build the lotbook binary into ./bin
 	go build -o $(BIN)/lotbook ./cmd/lotbook
@@ -51,11 +63,16 @@ run:  ## Run lotbook
 # ============================================================
 
 .PHONY: check
-check: lint test vuln tidy-check  ## Everything CI runs
+check: lint integration vuln tidy-check  ## Everything CI runs
 
 .PHONY: test
-test:  ## Run tests with the race detector
+test:  ## Run tests with the race detector; those needing PostgreSQL or Kafka skip
 	go test -race -count=1 ./...
+
+.PHONY: integration
+integration: up  ## Run every test, against compose.yaml's PostgreSQL and Kafka
+	LOTBOOK_TEST_POSTGRES_URL='$(TEST_POSTGRES_URL)' LOTBOOK_TEST_KAFKA_BROKERS='$(TEST_KAFKA_BROKERS)' \
+		go test -race -count=1 ./...
 
 .PHONY: lint
 lint: $(GOLANGCI_LINT)  ## Run golangci-lint

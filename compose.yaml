@@ -1,0 +1,50 @@
+# The PostgreSQL and Kafka that development and the integration tests run
+# against: `make up`, `make integration`, `make down`. In an installation both
+# come from the environment (ADR-0016); this is not a way to install Lotbook.
+#
+# Single instances, data in memory: nothing here survives `make down`.
+
+name: lotbook
+
+services:
+  postgres:
+    image: postgres:17.11@sha256:ff87138949ad9a46f32ff23bd6852b52ce024a13dffe9b4087be98292cdd3b4f
+    environment:
+      POSTGRES_USER: lotbook
+      POSTGRES_PASSWORD: lotbook
+      POSTGRES_DB: lotbook
+    ports:
+      - "127.0.0.1:55432:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "lotbook", "-d", "lotbook"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+
+  kafka:
+    image: apache/kafka:4.1.0@sha256:bff074a5d0051dbc0bbbcd25b045bb1fe84833ec0d3c7c965d1797dd289ec88f
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:59092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # The journal's topic is created on purpose, never by a first write.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    ports:
+      - "127.0.0.1:59092:9092"
+    tmpfs:
+      - /tmp/kraft-combined-logs
+    healthcheck:
+      test: ["CMD", "/opt/kafka/bin/kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:9092"]
+      interval: 2s
+      timeout: 10s
+      retries: 60
