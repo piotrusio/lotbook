@@ -69,12 +69,13 @@ func TestTake_dropsRecordsAlreadyTaken(t *testing.T) {
 	if err := s.Take(t.Context(), "journal", 0, entries(0, 0, 3)); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Take(t.Context(), "journal", 0, entries(0, 1, 5)); err != nil {
+	if err := s.Take(t.Context(), "journal", 0, entries(0, 1, 4)); err != nil {
 		t.Fatalf("Take with records already taken: %v", err)
 	}
 
-	var offsets []int64
-	for _, r := range taken(t, pool, 0) {
+	rows := taken(t, pool, 0)
+	offsets := make([]int64, 0, len(rows))
+	for _, r := range rows {
 		offsets = append(offsets, r.Offset)
 	}
 	if len(offsets) != 5 || offsets[0] != 0 || offsets[4] != 4 {
