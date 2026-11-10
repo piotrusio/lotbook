@@ -31,7 +31,7 @@ The one exception lasts one turn: at the `test` commit the tests are red on purp
 - **Go version:** the `go` line in `go.mod` is the minimum patch release with no known vulnerabilities. Raise it when a Go security release lands; `make vuln` fails otherwise.
 - **Dependencies:** our code imports the standard library, pgx, OpenTelemetry ([ADR-0007](.docs/adr/0007-the-standard-library-postgresql-and-opentelemetry.md)) and franz-go ([ADR-0012](.docs/adr/0012-a-pure-go-kafka-client.md)) — nothing else, and `depguard` refuses it. Never import a module OpenTelemetry happens to pull in. A new dependency is a new ADR; never widen the depguard list without one.
 - **Contracts:** every public interface's contract is a machine-readable file, `contracts/<interface>/v<N>/openapi.json` — OpenAPI 3.1 in JSON, with examples of what is accepted and, under `x-lotbook-refused-examples`, of what is refused. The tests run on those examples. A released version is never edited; a change is the next version.
-- **Tooling is pinned in one place:** golangci-lint in the `Makefile`, lefthook and govulncheck as `tool` lines in `go.mod`, the PostgreSQL and Kafka the tests run against by digest in `compose.yaml`. CI runs `make check` and states nothing of its own.
+- **Tooling is pinned in one place:** golangci-lint and helm in the `Makefile`, lefthook and govulncheck as `tool` lines in `go.mod`, the PostgreSQL and Kafka the tests run against by digest in `compose.yaml`. CI runs `make check` and states nothing of its own.
 - **Integration tests** need a PostgreSQL or a Kafka; they read `LOTBOOK_TEST_POSTGRES_URL` and `LOTBOOK_TEST_KAFKA_BROKERS` and skip without them. `make test` skips them, `make integration` runs them.
 - **Commands:** `make help`.
 
