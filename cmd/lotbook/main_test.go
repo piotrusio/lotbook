@@ -80,6 +80,43 @@ func TestRun_refusesToStartWithoutWhatTheRoleNeeds(t *testing.T) {
 	}
 }
 
+func TestRun_takesItsFlagsFromTheEnvironment(t *testing.T) {
+	t.Setenv("LOTBOOK_KAFKA_BROKERS", "127.0.0.1:1")
+
+	addr, stop := start(t, "ingest")
+
+	if got := status(t, http.MethodGet, "http://"+addr+"/readyz", ""); got != http.StatusOK {
+		t.Errorf("GET /readyz = %d; want 200", got)
+	}
+	if code := stop(); code != 0 {
+		t.Errorf("ingest with LOTBOOK_KAFKA_BROKERS exited %d; want 0", code)
+	}
+}
+
+func TestRun_aFlagWinsOverTheEnvironment(t *testing.T) {
+	t.Setenv("LOTBOOK_ADDR", "no-such-host.invalid:1")
+
+	_, stop := start(t, "query") // start passes -addr, which must win
+
+	if code := stop(); code != 0 {
+		t.Errorf("query exited %d; want 0", code)
+	}
+}
+
+func TestRun_refusesAMalformedEnvironmentVariable(t *testing.T) {
+	t.Setenv("LOTBOOK_DRAIN", "a while")
+	var stdout, stderr bytes.Buffer
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+
+	if code := run(ctx, []string{"query", "-addr", freeAddr(t)}, &stdout, &stderr); code != 2 {
+		t.Errorf("query with LOTBOOK_DRAIN=%q exited %d; want 2", "a while", code)
+	}
+	if !strings.Contains(stderr.String(), "LOTBOOK_DRAIN") {
+		t.Errorf("stderr does not name the variable: %s", stderr.String())
+	}
+}
+
 func TestRun_aSourceEventReachesPostgreSQL(t *testing.T) {
 	seeds, postgres := os.Getenv("LOTBOOK_TEST_KAFKA_BROKERS"), os.Getenv("LOTBOOK_TEST_POSTGRES_URL")
 	if seeds == "" || postgres == "" {
