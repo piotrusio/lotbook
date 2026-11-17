@@ -10,7 +10,7 @@ tool (
 require (
 	github.com/jackc/pgx/v5 v5.12.0
 	github.com/twmb/franz-go v1.22.2
-	github.com/twmb/franz-go/pkg/kmsg v1.15.0
+	github.com/twmb/franz-go/pkg/kmsg v1.15.1
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.47.0
 	go.opentelemetry.io/otel/sdk v1.47.0
